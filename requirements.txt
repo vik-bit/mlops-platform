@@ -1,5 +1,4 @@
 fastapi
-uvicorn
-pandas
-scikit-learn
-mlflow
+uvicorn[standard]
+pydantic
+pydantic-settings
