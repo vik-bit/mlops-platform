@@ -1,9 +1,22 @@
 from fastapi import FastAPI
-from app.routes.health import router as health_router
+
+from shared.database import engine, Base
+
+from app.routes.dataset_routes import router
+
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="dataset-service",
-    version="1.0.0"
+    title="Dataset Service"
 )
 
-app.include_router(health_router)
+app.include_router(router)
+
+
+@app.get("/health")
+def health():
+
+    return {
+        "status": "ok"
+    }

@@ -1,11 +1,22 @@
 FROM python:3.11-slim
 
+# Install system shared utilities required by LightGBM and XGBoost
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-COPY requirements.txt .
+COPY ./backend/training-service/requirements.txt .
+
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY ./backend/training-service /app
+
+COPY ./shared /app/shared
+
+ENV PYTHONPATH=/app
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
