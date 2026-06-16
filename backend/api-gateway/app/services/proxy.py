@@ -1,6 +1,12 @@
 from fastapi import Response
 import httpx
 
+# Headers that must not be forwarded — httpx recalculates these
+HOP_BY_HOP = {
+    "host", "content-length", "transfer-encoding",
+    "connection", "keep-alive", "te", "trailers", "upgrade",
+}
+
 
 async def forward_request(
     method: str,
@@ -10,14 +16,19 @@ async def forward_request(
     params=None,
     content=None,
 ):
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    # Strip hop-by-hop headers so httpx sets Content-Length correctly
+    clean_headers = {
+        k: v for k, v in (headers or {}).items()
+        if k.lower() not in HOP_BY_HOP
+    }
 
+    async with httpx.AsyncClient(timeout=200.0) as client:
         response = await client.request(
             method=method,
             url=url,
             json=body,
             content=content,
-            headers=headers,
+            headers=clean_headers,
             params=params,
         )
 

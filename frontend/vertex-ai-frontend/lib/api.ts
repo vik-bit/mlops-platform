@@ -1,6 +1,9 @@
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+
+const COPILOT_BASE = `${BASE}/api/copilot`
+
+
 
 export interface LoginResponse {
   access_token: string
@@ -13,7 +16,6 @@ export interface User {
   role: 'admin' | 'user'
 }
 
-// DatasetResponse — exactly as returned by dataset-service
 export interface Dataset {
   id: number
   filename: string
@@ -21,20 +23,18 @@ export interface Dataset {
   created_at: string
 }
 
-// TrainingResponse — exactly as returned by training-service
 export interface TrainingJob {
   id: number
   dataset_id: number
   model_type: string
-  status: string          // "queued" | "running" | "completed" | "failed"
-  accuracy: string | null // string e.g. "0.94" or null
+  status: string
+  accuracy: string | null
   mlflow_run_id: string | null
   created_at: string
 }
 
 export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
-// TrainingRequest — exactly what training-service POST /train expects
 export interface StartTrainingParams {
   dataset_id: number
   target_column: string
@@ -43,7 +43,6 @@ export interface StartTrainingParams {
   hyperparameters?: Record<string, unknown>
 }
 
-// ModelRegistry row returned by GET /models
 export interface ModelVersion {
   id: number
   training_job_id: number
@@ -52,18 +51,16 @@ export interface ModelVersion {
   model_path: string
   stage: string
   accuracy: string | null
-  metadata_path: string | null   // needed for drift — returned by SQLAlchemy, was missing from type
+  metadata_path: string | null
 }
 
-// Deployment row — exactly what deployment-service returns
 export interface Deployment {
   id: number
   model_id: number
-  status: string    // "active" | "stopped" etc
+  status: string
   endpoint: string
 }
 
-// DeployResponse — POST /deploy/{model_id} response
 export interface DeployResponse {
   message: string
   endpoint: string
@@ -73,7 +70,6 @@ export interface PredictionResponse {
   prediction: string | number
 }
 
-// Monitoring — /models/{model_id}/stats
 export interface ModelStats {
   model_id: number
   total_predictions: number
@@ -84,14 +80,12 @@ export interface ModelStats {
   last_prediction_time: string | null
 }
 
-// Monitoring — /system-overview (raw API response)
 export interface SystemOverviewRaw {
   platform_status: string
   services: Record<string, { status: string; status_code: number; latency_ms: number }>
   system_metrics: { cpu_percent: number; memory_percent: number; disk_percent: number }
 }
 
-// Normalised shape used by the UI
 export interface SystemOverview {
   cpu_percent: number
   memory_percent: number
@@ -105,7 +99,6 @@ export interface ServiceHealth {
   latency_ms: number
 }
 
-// Monitoring — POST /log body
 export interface PredictionLogRequest {
   model_id: number
   input_data: string
@@ -114,10 +107,6 @@ export interface PredictionLogRequest {
   status?: string
 }
 
-// ─── Missing exports used by monitoring-view and deployments-view ─────────────
-
-// PredictionHistoryEntry — history rows returned by GET /models/{id}/history
-// Has id + created_at (server-side fields) unlike PredictionLogRequest (POST body)
 export interface PredictionHistoryEntry {
   id: number
   model_id: number
@@ -127,7 +116,6 @@ export interface PredictionHistoryEntry {
   created_at: string
 }
 
-// ModelSchema — returned by GET /predict/{model_id}/schema
 export interface ModelSchema {
   model_id: number
   features: Record<string, 'numeric' | 'categorical'>
@@ -136,7 +124,6 @@ export interface ModelSchema {
   top_features?: string[]
 }
 
-// DriftResult — returned by GET /models/{model_id}/drift
 export interface DriftResult {
   model_id: number
   logs_analysed: number
@@ -234,6 +221,36 @@ async function request<T>(
   return res.json() as Promise<T>
 }
 
+// Copilot requests go through the gateway — JWT auth included automatically
+async function copilotRequest<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const token = getToken()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(`${COPILOT_BASE}${path}`, { ...options, headers })
+
+  if (res.status === 401) {
+    clearToken()
+    if (typeof window !== 'undefined') window.location.href = '/login'
+    throw new ApiError(401, 'Unauthorized')
+  }
+
+  if (!res.ok) {
+    let detail: unknown
+    try { detail = await res.json() } catch { detail = await res.text() }
+    throw new ApiError(res.status, `Copilot error: HTTP ${res.status}`, detail)
+  }
+
+  if (res.status === 204) return undefined as T
+  return res.json() as Promise<T>
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const auth = {
@@ -262,7 +279,7 @@ export const auth = {
     }),
 }
 
-// ─── Datasets — /api/datasets/... ────────────────────────────────────────────
+// ─── Datasets ─────────────────────────────────────────────────────────────────
 
 export const datasets = {
   list: () =>
@@ -292,14 +309,7 @@ export const datasets = {
     request<void>(`/api/datasets/datasets/${id}`, { method: 'DELETE' }),
 }
 
-// ─── Training — /api/training/... ────────────────────────────────────────────
-// POST /api/training/train          { dataset_id, target_column, model_type }
-// GET  /api/training/training
-// GET  /api/training/training/{job_id}
-// DELETE /api/training/training/{job_id}
-// PUT  /api/training/training/{job_id}/cancel
-// GET  /api/training/models
-// POST /api/training/predict        { model_id, features: any[] }
+// ─── Training ─────────────────────────────────────────────────────────────────
 
 export const training = {
   startJob: (params: StartTrainingParams) =>
@@ -334,14 +344,7 @@ export const training = {
     }),
 }
 
-// ─── Deployments — /api/deployment/... ───────────────────────────────────────
-// POST   /api/deployment/deploy/{model_id}     → DeployResponse
-// GET    /api/deployment/deployments           → Deployment[]
-// DELETE /api/deployment/deploy/{deployment_id}
-// POST   /api/deployment/predict/{model_id}              { features: number[] }
-// POST   /api/deployment/predict/{model_id}/named        { features: {}, return_proba? }
-// GET    /api/deployment/predict/{model_id}/schema
-// POST   /api/deployment/predict/{model_id}/explain      { features: {} }
+// ─── Deployments ──────────────────────────────────────────────────────────────
 
 export interface PredictionSchema {
   model_id:     number
@@ -385,21 +388,18 @@ export const deployments = {
       method: 'DELETE',
     }),
 
-  // Legacy positional predict
   predict: (modelId: number, features: number[]) =>
     request<PredictionResponse>(`/api/deployment/predict/${modelId}`, {
       method: 'POST',
       body: JSON.stringify({ features }),
     }),
 
-  // Named feature predict — preferred
   predictNamed: (modelId: number, features: Record<string, unknown>, returnProba = false) =>
     request<NamedPredictionResult>(`/api/deployment/predict/${modelId}/named`, {
       method: 'POST',
       body: JSON.stringify({ features, return_proba: returnProba }),
     }),
 
-  // Batch predict — uploads CSV, returns blob URL of predictions CSV
   predictBatch: async (modelId: number, file: File): Promise<string> => {
     const token = getToken()
     const form = new FormData()
@@ -414,11 +414,9 @@ export const deployments = {
     return URL.createObjectURL(blob)
   },
 
-  // Get feature schema for dynamic form
   schema: (modelId: number) =>
     request<ModelSchema>(`/api/deployment/predict/${modelId}/schema`),
 
-  // SHAP explanation for named features
   explain: (modelId: number, features: Record<string, unknown>) =>
     request<ShapExplanation>(`/api/deployment/predict/${modelId}/explain`, {
       method: 'POST',
@@ -426,12 +424,7 @@ export const deployments = {
     }),
 }
 
-// ─── Monitoring — /api/monitoring/... ────────────────────────────────────────
-// GET  /api/monitoring/models/{model_id}/stats
-// GET  /api/monitoring/system-overview
-// GET  /api/monitoring/health
-// GET  /api/monitoring/metrics        (Prometheus text)
-// POST /api/monitoring/log            PredictionLogRequest
+// ─── Monitoring ───────────────────────────────────────────────────────────────
 
 export const monitoring = {
   modelStats: (modelId: number) =>
@@ -447,9 +440,7 @@ export const monitoring = {
 
   systemOverview: async (): Promise<SystemOverview> => {
     const raw = await request<SystemOverviewRaw>('/api/monitoring/system-overview')
-    // Debug: log raw shape to console so we can see what the gateway actually returns
     console.log('[systemOverview] raw response:', JSON.stringify(raw))
-    // Handle both direct shape and possible gateway-wrapped shape
     const metrics = raw.system_metrics ?? (raw as unknown as Record<string, unknown>)
     const cpu    = (metrics as Record<string, unknown>).cpu_percent    as number | undefined
     const mem    = (metrics as Record<string, unknown>).memory_percent as number | undefined
@@ -485,24 +476,19 @@ export const monitoring = {
 
   aggregateTimeseries: async (modelIds: number[]): Promise<LatencyDataPoint[]> => {
     if (!modelIds.length) return []
-
     const results = await Promise.allSettled(
       modelIds.map((id) => monitoring.modelStats(id)),
     )
-
     const fulfilled = results
       .filter((r): r is PromiseFulfilledResult<ModelStats> => r.status === 'fulfilled')
       .map((r) => r.value)
-
     if (!fulfilled.length) return []
-
     const avgLatency = fulfilled.reduce((s, d) => s + (d.avg_latency_ms ?? 0), 0) / fulfilled.length
     const totalRpm   = fulfilled.reduce((s, d) => s + (d.total_predictions ?? 0), 0)
     const avgErr     = fulfilled.reduce((s, d) => {
       const rate = d.success_rate != null ? (100 - d.success_rate) / 100 : 0
       return s + rate
     }, 0) / fulfilled.length
-
     const now = new Date()
     return Array.from({ length: 12 }, (_, i) => {
       const t = new Date(now.getTime() - (11 - i) * 3_600_000)
@@ -514,4 +500,116 @@ export const monitoring = {
       }
     })
   },
+}
+
+// ─── AI Copilot — goes through gateway at /api/copilot/* ─────────────────────
+
+export interface CopilotChatRequest {
+  message: string
+  reset_context?: boolean
+}
+
+export interface CopilotChatResponse {
+  response: string
+  context_length: number
+}
+
+export interface CopilotSHAPRequest {
+  shap_data?: {
+    base_value?: number
+    values?: Record<string, number>
+    features?: Record<string, string>
+  }
+  model_name?: string
+}
+
+export interface CopilotSHAPResponse {
+  explanation: string
+  context_updated: boolean
+}
+
+export interface CopilotDriftRequest {
+  model_name?: string
+  drift_data?: {
+    metric: string
+    value: number
+    threshold: number
+  }
+}
+
+export interface CopilotDriftResponse {
+  explanation: string
+  recommendations: string[]
+  context_updated: boolean
+}
+
+export interface CopilotModelComparison {
+  name: string
+  accuracy?: number
+  precision?: number
+  recall?: number
+  f1?: number
+  latency_ms?: number
+  training_time?: number
+}
+
+export interface CopilotComparisonRequest {
+  models: CopilotModelComparison[]
+  question?: string
+}
+
+export interface CopilotComparisonResponse {
+  comparison: string
+  recommendation: string
+  context_updated: boolean
+}
+
+export interface CopilotContextResponse {
+  messages: Array<{
+    role: 'user' | 'assistant'
+    content: string
+  }>
+  length: number
+}
+
+export interface CopilotHealthResponse {
+  status: string
+  service: string
+  llm_provider: string
+  llm_model: string
+}
+
+export const copilot = {
+  chat: (message: string, resetContext = false) =>
+    copilotRequest<CopilotChatResponse>('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, reset_context: resetContext }),
+    }),
+
+  explainSHAP: (shapData?: CopilotSHAPRequest['shap_data'], modelName?: string) =>
+    copilotRequest<CopilotSHAPResponse>('/explain-shap', {
+      method: 'POST',
+      body: JSON.stringify({ shap_data: shapData, model_name: modelName }),
+    }),
+
+  explainDrift: (modelName?: string, driftData?: CopilotDriftRequest['drift_data']) =>
+    copilotRequest<CopilotDriftResponse>('/explain-drift', {
+      method: 'POST',
+      body: JSON.stringify({ model_name: modelName, drift_data: driftData }),
+    }),
+
+  compareModels: (models: CopilotModelComparison[], question?: string) =>
+    copilotRequest<CopilotComparisonResponse>('/compare-models', {
+      method: 'POST',
+      body: JSON.stringify({ models, question }),
+    }),
+
+  getContext: () =>
+    copilotRequest<CopilotContextResponse>('/context', { method: 'GET' }),
+
+  resetContext: () =>
+    copilotRequest<void>('/reset-context', { method: 'POST' }),
+
+  health: () =>
+    copilotRequest<CopilotHealthResponse>('/health', { method: 'GET' }),
 }

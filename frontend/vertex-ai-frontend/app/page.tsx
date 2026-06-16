@@ -8,6 +8,7 @@ import TrainingView from '@/components/training-view'
 import DeploymentsView from '@/components/deployments-view'
 import MonitoringView from '@/components/monitoring-view'
 import DatasetsView from '@/components/datasets-view'
+import CopilotPage from '@/app/copilot/page'
 import { getToken } from '@/lib/api'
 
 export default function Home() {
@@ -37,6 +38,7 @@ export default function Home() {
       case 'training':    return <TrainingView />
       case 'deployments': return <DeploymentsView />
       case 'monitoring':  return <MonitoringView />
+      case 'copilot':     return <CopilotPage />
       default:            return <Dashboard />
     }
   }

@@ -13,6 +13,8 @@ services:
     depends_on:
       - postgres
       - redis
+    networks:
+      - mlops_network
 
   dataset-service:
     build:
@@ -28,6 +30,8 @@ services:
       - PYTHONPATH=/app
     depends_on:
       - postgres
+    networks:
+      - mlops_network
 
   training-service:
     build:
@@ -36,12 +40,14 @@ services:
     ports:
       - "8002:8000"
     volumes:
-    - ./backend/training-service:/app
-    - ./shared:/app/shared
-    - ./datasets:/app/datasets
-    - ./saved_models:/app/saved_models
+      - ./backend/training-service:/app
+      - ./shared:/app/shared
+      - ./datasets:/app/datasets
+      - ./saved_models:/app/saved_models
     environment:
       - PYTHONPATH=/app
+    networks:
+      - mlops_network
     depends_on:
       - postgres
       - redis
@@ -61,6 +67,8 @@ services:
       - PYTHONPATH=/app
     depends_on:
       - postgres
+    networks:
+      - mlops_network
 
   monitoring-service:
     build:
@@ -75,9 +83,13 @@ services:
       - PYTHONPATH=/app
     depends_on:
       - postgres
+    networks:
+      - mlops_network
 
   postgres:
     image: postgres:16
+    networks:
+      - mlops_network
     container_name: mlops-postgres
     environment:
       POSTGRES_USER: admin
@@ -91,39 +103,104 @@ services:
     container_name: mlops-redis
     ports:
       - "6379:6379"
+    networks:
+      - mlops_network
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.12.1
     container_name: mlops-mlflow
     ports:
       - "5000:5000"
+    networks:
+      - mlops_network
     command: >
       mlflow server
       --host 0.0.0.0
       --port 5000
- 
+
   prometheus:
+    networks:
+      - mlops_network
     image: prom/prometheus
-
     container_name: prometheus
-
     ports:
       - "9090:9090"
-
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
-
     depends_on:
       - monitoring-service
 
 
-  grafana:
-    image: grafana/grafana
 
-    container_name: grafana
+  ai-service:
+    build:
+      context: .
+      dockerfile: ./backend/ai-service/Dockerfile
+    container_name: mlops_ai_service
+    environment:
+      SERVICE_NAME: "ai-service"
+      ENVIRONMENT: "production"
 
+      LLM_PROVIDER: "ollama"
+      LLM_MODEL: "qwen2.5:3b"
+      LLM_OLLAMA_URL: "http://ollama:11434"
+      LLM_TEMPERATURE: "0.3"
+      LLM_MAX_TOKENS: "1024"
+      LLM_TIMEOUT: "280"
+
+      DEPLOYMENT_SERVICE_URL: "http://deployment-service:8003"
+      MONITORING_SERVICE_URL: "http://monitoring-service:8004"
+      TRAINING_SERVICE_URL: "http://training-service:8002"
     ports:
-      - "3000:3000"
-
+      - "8005:8000"
+    networks:
+      - mlops_network
+    restart: unless-stopped
     depends_on:
-      - prometheus
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mlops_ollama
+    environment:
+      OLLAMA_HOST: "0.0.0.0:11434"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    ports:
+      - "11434:11434"
+    networks:
+      - mlops_network
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:11434/api/tags || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    cpus: "4"
+    mem_limit: 4g
+
+networks:
+  mlops_network:
+
+volumes:
+  ollama_data:
