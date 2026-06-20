@@ -307,97 +307,100 @@ export default function DeploymentsView() {
 
                             {/* SHAP explanation */}
                             {shap && (
-                              <div>
-                                <p className="text-sm font-semibold text-foreground mb-3">
-                                  SHAP Explanation
-                                  {shap.source && <span className="text-xs text-muted-foreground font-normal ml-2">({shap.source})</span>}
-                                </p>
-                                {shap.error ? (
-                                  <p className="text-xs text-red-500 font-mono break-all">{shap.error}</p>
-                                ) : shap.global_importance && Object.keys(shap.global_importance).length > 0 ? (
-                                  <div className="space-y-1.5">
-                                    {Object.entries(shap.global_importance).slice(0, 10).map(([feat, imp]) => {
-                                      const max = Math.max(...Object.values(shap.global_importance!))
-                                      const pct = max > 0 ? (imp / max) * 100 : 0
-                                      return (
-                                        <div key={feat} className="flex items-center gap-2">
-                                          <span className="text-xs text-muted-foreground w-32 truncate text-right flex-shrink-0" title={feat}>{feat}</span>
-                                          <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
-                                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
-                                          </div>
-                                          <span className="text-xs font-mono text-foreground w-14 text-right">{(imp as number).toFixed(4)}</span>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                  
-                                ) : (
-                                  <p className="text-xs text-amber-500">
-                                    No feature importance data returned. Check browser console for the raw response — look for <code>[SHAP] raw response</code>.
+                              <>
+                                <div>
+                                  <p className="text-sm font-semibold text-foreground mb-3">
+                                    SHAP Explanation
+                                    {shap.source && <span className="text-xs text-muted-foreground font-normal ml-2">({shap.source})</span>}
                                   </p>
+                                  {shap.error ? (
+                                    <p className="text-xs text-red-500 font-mono break-all">{shap.error}</p>
+                                  ) : shap.global_importance && Object.keys(shap.global_importance).length > 0 ? (
+                                    <div className="space-y-1.5">
+                                      {Object.entries(shap.global_importance).slice(0, 10).map(([feat, imp]) => {
+                                        const max = Math.max(...Object.values(shap.global_importance!))
+                                        const pct = max > 0 ? (imp / max) * 100 : 0
+                                        return (
+                                          <div key={feat} className="flex items-center gap-2">
+                                            <span className="text-xs text-muted-foreground w-32 truncate text-right flex-shrink-0" title={feat}>{feat}</span>
+                                            <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
+                                              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+                                            </div>
+                                            <span className="text-xs font-mono text-foreground w-14 text-right">{(imp as number).toFixed(4)}</span>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-amber-500">
+                                      No feature importance data returned. Check browser console for the raw response — look for <code>[SHAP] raw response</code>.
+                                    </p>
+                                  )}
+                                </div>
+
+                                {shap.base_value !== null && (
+                                  <div className="mb-4 p-3 rounded-lg bg-secondary/40 border border-border">
+                                    <p className="text-xs text-muted-foreground">
+                                      Base Value
+                                    </p>
+
+                                    <p className="text-lg font-semibold text-foreground">
+                                      {typeof shap.base_value === 'number'
+                                        ? shap.base_value.toFixed(4)
+                                        : shap.base_value}
+                                    </p>
+
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Model prediction before feature contributions are applied.
+                                    </p>
+                                  </div>
                                 )}
-                              </div>
+
+                                {/* Local Explanation */}
+                                {shap.local_explanation && shap.local_explanation.length > 0 && (
+                                  <div className="mt-6">
+                                    <p className="text-sm font-semibold text-foreground mb-3">
+                                      Local Feature Contributions
+                                    </p>
+
+                                    <div className="space-y-2">
+                                      {shap.local_explanation
+                                        .sort((a, b) => Math.abs(b.shap_value) - Math.abs(a.shap_value))
+                                        .map((item) => (
+                                          <div
+                                            key={item.feature}
+                                            className="flex items-center gap-3 p-2 rounded-lg border border-border"
+                                          >
+                                            <div className="flex-1 min-w-0">
+                                              <p
+                                                className="text-xs font-medium truncate"
+                                                title={item.feature}
+                                              >
+                                                {item.feature}
+                                              </p>
+
+                                              <p className="text-[11px] text-muted-foreground">
+                                                Value: {String(item.value)}
+                                              </p>
+                                            </div>
+
+                                            <span
+                                              className={`text-xs font-semibold ${
+                                                item.shap_value >= 0
+                                                  ? 'text-green-600'
+                                                  : 'text-red-600'
+                                              }`}
+                                            >
+                                              {item.shap_value >= 0 ? '+' : ''}
+                                              {item.shap_value.toFixed(4)}
+                                            </span>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
                             )}
-                            {shap.base_value !== null && (
-  <div className="mb-4 p-3 rounded-lg bg-secondary/40 border border-border">
-    <p className="text-xs text-muted-foreground">
-      Base Value
-    </p>
-
-    <p className="text-lg font-semibold text-foreground">
-      {typeof shap.base_value === 'number'
-        ? shap.base_value.toFixed(4)
-        : shap.base_value}
-    </p>
-
-    <p className="text-xs text-muted-foreground mt-1">
-      Model prediction before feature contributions are applied.
-    </p>
-  </div>
-)}
-{/* Local Explanation */}
-{shap.local_explanation && shap.local_explanation.length > 0 && (
-  <div className="mt-6">
-    <p className="text-sm font-semibold text-foreground mb-3">
-      Local Feature Contributions
-    </p>
-
-    <div className="space-y-2">
-      {shap.local_explanation
-        .sort((a, b) => Math.abs(b.shap_value) - Math.abs(a.shap_value))
-        .map((item) => (
-          <div
-            key={item.feature}
-            className="flex items-center gap-3 p-2 rounded-lg border border-border"
-          >
-            <div className="flex-1 min-w-0">
-              <p
-                className="text-xs font-medium truncate"
-                title={item.feature}
-              >
-                {item.feature}
-              </p>
-
-              <p className="text-[11px] text-muted-foreground">
-                Value: {String(item.value)}
-              </p>
-            </div>
-
-            <span
-              className={`text-xs font-semibold ${
-                item.shap_value >= 0
-                  ? 'text-green-600'
-                  : 'text-red-600'
-              }`}
-            >
-              {item.shap_value >= 0 ? '+' : ''}
-              {item.shap_value.toFixed(4)}
-            </span>
-          </div>
-        ))}
-    </div>
-  </div>
-)}
                             {/* Batch prediction */}
                             <div>
                               <p className="text-sm font-semibold text-foreground mb-2">Batch Prediction</p>

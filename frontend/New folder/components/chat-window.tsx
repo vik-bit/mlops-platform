@@ -8,6 +8,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   isLoading?: boolean;
+  toolsUsed?: string[];
 }
 
 interface ChatWindowProps {
@@ -33,7 +34,7 @@ export function ChatWindow({ messages, isLoading }: ChatWindowProps) {
           <div className="text-5xl mb-4">🤖</div>
           <h2 className="text-2xl font-bold text-white mb-2">AI Copilot</h2>
           <p className="text-gray-400 max-w-sm">
-            Ask questions about your models, predictions, drift analysis, model comparisons, or any MLOps insights.
+            Ask about experiments, deployments, model performance, drift, or platform metrics — the copilot queries live data automatically.
           </p>
         </div>
       ) : (
@@ -44,6 +45,7 @@ export function ChatWindow({ messages, isLoading }: ChatWindowProps) {
               role={message.role}
               content={message.content}
               isLoading={message.isLoading}
+              toolsUsed={message.toolsUsed}
             />
           ))}
           {isLoading && (

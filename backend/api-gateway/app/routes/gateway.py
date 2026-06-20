@@ -12,7 +12,7 @@ SERVICES = {
     "training":   "http://training-service:8000",
     "deployment": "http://deployment-service:8000",
     "monitoring": "http://monitoring-service:8000",
-    "copilot":    "http://ai-service:8000/copilot",
+    "copilot":    "http://ai-service:8000",
 }
 
 # Routes accessible to all authenticated users (non-admin)

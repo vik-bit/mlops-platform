@@ -5,9 +5,10 @@ interface ChatMessageProps {
   role: 'user' | 'assistant';
   content: string;
   isLoading?: boolean;
+  toolsUsed?: string[];
 }
 
-export function ChatMessage({ role, content, isLoading }: ChatMessageProps) {
+export function ChatMessage({ role, content, isLoading, toolsUsed }: ChatMessageProps) {
   const isUser = role === 'user';
 
   return (
@@ -43,7 +44,14 @@ export function ChatMessage({ role, content, isLoading }: ChatMessageProps) {
             <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
           </div>
         ) : (
-          content
+          <>
+            {content}
+            {toolsUsed && toolsUsed.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-600 text-xs text-gray-400">
+                Tools: {toolsUsed.join(', ')}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

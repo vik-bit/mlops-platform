@@ -1,58 +1,36 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Upload, Trash2, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { Upload, Trash2, FileText, BarChart3, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table'
 import { useDatasets } from '@/lib/hooks'
 import { datasets as datasetsApi, Dataset, DatasetProfile } from '@/lib/api'
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-
-const getTopCorrelations = (
-  matrix: Record<string, Record<string, number>>
-) => {
-  const pairs: {
-    featureA: string
-    featureB: string
-    correlation: number
-  }[] = []
-
-  Object.entries(matrix).forEach(([featureA, values]) => {
-    Object.entries(values).forEach(([featureB, corr]) => {
-      if (
-        featureA !== featureB &&
-        featureA < featureB
-      ) {
-        pairs.push({
-          featureA,
-          featureB,
-          correlation: Math.abs(corr),
-        })
-      }
-    })
-  })
-
-  return pairs
-    .sort(
-      (a, b) =>
-        b.correlation - a.correlation
-    )
-    .slice(0, 10)
-}
+import ProfileModal from '@/components/profile_modal'
 
 export default function DatasetsView() {
   const { data, loading, refresh } = useDatasets()
   const datasetList: Dataset[] = data ?? []
 
-  const [uploading, setUploading]           = useState(false)
-  const [selectedFiles, setSelectedFiles]   = useState<File[]>([])
-  const [error, setError]                   = useState<string | null>(null)
-  const [deleting, setDeleting]             = useState<number | null>(null)
-  const [profileId, setProfileId]           = useState<number | null>(null)
-  const [profile, setProfile]               = useState<DatasetProfile | null>(null)
-  const [selectedTargets, setSelectedTargets] = useState<
-  Record<number, string>
->({})
-  const [profileLoading, setProfileLoading] = useState(false)
+  const [uploading, setUploading]             = useState(false)
+  const [selectedFiles, setSelectedFiles]     = useState<File[]>([])
+  const [error, setError]                     = useState<string | null>(null)
+  const [deleting, setDeleting]               = useState<number | null>(null)
+
+  // Which dataset's modal is open (null = closed). Renamed from the old
+  // `profileId` toggle to reflect the new "Analyze" button — same role,
+  // always opens rather than toggling closed on a second click.
+  const [analyzingId, setAnalyzingId]         = useState<number | null>(null)
+  const [profile, setProfile]                 = useState<DatasetProfile | null>(null)
+  const [selectedTargets, setSelectedTargets] = useState<Record<number, string>>({})
+  const [profileLoading, setProfileLoading]   = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,47 +51,49 @@ export default function DatasetsView() {
 
   const handleDelete = async (id: number) => {
     setDeleting(id)
-    try { await datasetsApi.delete(id); if (profileId === id) setProfileId(null); refresh() }
-    catch (err: unknown) { setError(err instanceof Error ? err.message : 'Delete failed') }
-    finally { setDeleting(null) }
-  }
-
-  const toggleProfile = async (id: number) => {
-    if (profileId === id) { setProfileId(null); setProfile(null); return }
-    setProfileId(id); setProfileLoading(true); setProfile(null)
     try {
-      const p = await datasetsApi.profile(
-  id,
-  selectedTargets[id] || ''
-)
+      await datasetsApi.delete(id)
+      if (analyzingId === id) { setAnalyzingId(null); setProfile(null) }
+      refresh()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Delete failed')
+    } finally { setDeleting(null) }
+  }
+
+  // Opens the modal and fetches the profile when "Analyze" is clicked.
+  const openProfile = async (id: number) => {
+    setAnalyzingId(id)
+    setProfileLoading(true)
+    setProfile(null)
+    try {
+      const p = await datasetsApi.profile(id, selectedTargets[id] || '')
       setProfile(p)
-    } catch { setProfile(null) }
-    finally { setProfileLoading(false) }
+    } catch {
+      setProfile(null)
+    } finally {
+      setProfileLoading(false)
+    }
   }
-  const reloadProfile = async (
-  datasetId: number,
-  target: string
-) => {
-  setSelectedTargets(prev => ({
-    ...prev,
-    [datasetId]: target,
-  }))
 
-  setProfileLoading(true)
-
-  try {
-    const p = await datasetsApi.profile(
-      datasetId,
-      target
-    )
-
-    setProfile(p)
-  } catch (err) {
-    console.error(err)
-  } finally {
-    setProfileLoading(false)
+  const closeProfile = () => {
+    setAnalyzingId(null)
+    setProfile(null)
   }
-}
+
+  const reloadProfile = async (datasetId: number, target: string) => {
+    setSelectedTargets(prev => ({ ...prev, [datasetId]: target }))
+    setProfileLoading(true)
+    try {
+      const p = await datasetsApi.profile(datasetId, target)
+      setProfile(p)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setProfileLoading(false)
+    }
+  }
+
+  const activeDataset = datasetList.find(d => d.id === analyzingId)
 
   return (
     <div className="flex-1 overflow-auto bg-white">
@@ -127,20 +107,23 @@ export default function DatasetsView() {
           <Button onClick={() => fileInputRef.current?.click()}>
             <Upload className="w-4 h-4 mr-2" />Upload Dataset
           </Button>
-          
         </div>
       </div>
 
       <div className="p-8">
         {/* Upload zone */}
-        <div className="mb-8 border-2 border-dashed border-border rounded-xl p-8 hover:border-foreground/20 transition">
+        <div className="mb-8 border-2 border-dashed border-border rounded-xl p-8 hover:border-foreground/30 transition-colors">
           <div className="text-center">
-            <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+            <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center mx-auto mb-3">
+              <FileText className="w-6 h-6 text-muted-foreground" />
+            </div>
             <h3 className="text-base font-semibold text-foreground mb-1">Upload New Dataset</h3>
             <p className="text-sm text-muted-foreground mb-4">CSV files supported</p>
-            <input ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" accept=".csv" />
-            <label htmlFor="file-input" onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center px-5 py-2.5 rounded-lg bg-foreground text-white text-sm font-medium hover:bg-foreground/90 transition cursor-pointer">
+            <input ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" accept=".csv" id="dataset-file-input" />
+            <label
+              htmlFor="dataset-file-input"
+              className="inline-flex items-center px-5 py-2.5 rounded-lg bg-foreground text-white text-sm font-medium hover:bg-foreground/90 transition cursor-pointer"
+            >
               <Upload className="w-4 h-4 mr-2" />Select Files
             </label>
             {selectedFiles.length > 0 && (
@@ -155,399 +138,82 @@ export default function DatasetsView() {
           </div>
         </div>
 
-        {/* Table */}
+        {/* Dataset table */}
         <div className="bg-white border border-border rounded-xl overflow-hidden mb-6">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th style={{ padding: '12px 20px' }}>Filename</th>
-                <th style={{ padding: '12px 20px' }}>Path</th>
-                <th style={{ padding: '12px 20px' }}>Uploaded</th>
-                <th style={{ padding: '12px 20px', textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[40%]">Filename</TableHead>
+                <TableHead>Path</TableHead>
+                <TableHead>Uploaded</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {loading ? (
-                <tr><td colSpan={4} className="text-center py-10 text-muted-foreground text-sm">Loading…</td></tr>
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-10 text-muted-foreground text-sm">
+                    Loading…
+                  </TableCell>
+                </TableRow>
               ) : datasetList.length === 0 ? (
-                <tr><td colSpan={4} className="text-center py-10 text-muted-foreground text-sm">No datasets uploaded yet</td></tr>
-              ) : datasetList.map(ds => (
-                <>
-                  <tr key={ds.id}>
-                    <td style={{ padding: '10px 20px' }}>
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-10 text-muted-foreground text-sm">
+                    No datasets uploaded yet
+                  </TableCell>
+                </TableRow>
+              ) : (
+                datasetList.map(ds => (
+                  <TableRow key={ds.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-secondary shrink-0">
+                          <FileText className="w-4 h-4 text-muted-foreground" />
+                        </div>
                         <span className="font-medium text-foreground text-sm">{ds.filename}</span>
                       </div>
-                    </td>
-                    <td style={{ padding: '10px 20px', fontFamily: 'monospace', fontSize: 11, color: '#b8b8b4', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {ds.path}
-                    </td>
-                    <td style={{ padding: '10px 20px', fontSize: 12, color: '#888' }}>
-                      {new Date(ds.created_at).toLocaleDateString()}
-                    </td>
-                    <td style={{ padding: '10px 20px', textAlign: 'right' }}>
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => toggleProfile(ds.id)}
-                          className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition"
-                          title="View profile">
-                          {profileId === ds.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
-                        <button onClick={() => handleDelete(ds.id)} disabled={deleting === ds.id}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition">
+                    </TableCell>
+                    <TableCell>
+                      <code className="text-xs text-muted-foreground bg-secondary/60 rounded px-2 py-1 inline-block max-w-[260px] truncate">
+                        {ds.path}
+                      </code>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(ds.created_at).toLocaleDateString(undefined, {
+                        year: 'numeric', month: 'short', day: 'numeric',
+                      })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                       <Button
+  variant="outline"
+  size="sm"
+  onClick={() => openProfile(ds.id)}
+  disabled={analyzingId === ds.id && profileLoading}
+  className="h-8 gap-1.5 bg-blue-500 text-white hover:bg-blue-600 disabled:bg-blue-400 disabled:cursor-not-allowed"
+>
+                          {analyzingId === ds.id && profileLoading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <BarChart3 className="w-3.5 h-3.5" />
+                          )}
+                          Analyze
+                        </Button>
+                        <button
+                          onClick={() => handleDelete(ds.id)}
+                          disabled={deleting === ds.id}
+                          className="p-2 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition disabled:opacity-50"
+                          title="Delete dataset"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    </td>
-                  </tr>
-
-                  {/* Profile panel */}
-                  {profileId === ds.id && (
-                    <tr key={`profile-${ds.id}`}>
-                      <td colSpan={4} style={{ padding: 0, background: '#fafaf8', borderTop: '1px solid #f0f0ee' }}>
-                        <div className="p-5">
-                          {profileLoading ? (
-                            <p className="text-sm text-muted-foreground">Loading profile…</p>
-                          ) : profile ? (
-                            <div>
-                              <div className="flex items-center gap-6 mb-4 text-sm">
-                                <div className="mb-6 flex items-center gap-3">
-  <div>
-    <label className="block text-xs text-muted-foreground mb-1">
-      Target Column
-    </label>
-
-    <select
-      className="border rounded-md px-3 py-2 text-sm min-w-[220px]"
-      value={
-        selectedTargets[ds.id] || ''
-      }
-      onChange={(e) =>
-        setSelectedTargets(prev => ({
-          ...prev,
-          [ds.id]: e.target.value,
-        }))
-      }
-    >
-      <option value="">
-        No target selected
-      </option>
-
-      {Object.keys(profile.columns).map(
-        col => (
-          <option
-            key={col}
-            value={col}
-          >
-            {col}
-          </option>
-        )
-      )}
-    </select>
-  </div>
-
-  <Button
-    className="mt-5"
-    disabled={
-      !selectedTargets[ds.id]
-    }
-    onClick={() =>
-      reloadProfile(
-        ds.id,
-        selectedTargets[ds.id]
-      )
-    }
-  >
-    Reload Analysis
-  </Button>
-</div>
-                                <span className="text-muted-foreground">Rows: <b className="text-foreground">{profile.row_count?.toLocaleString()}</b></span>
-                                <span className="text-muted-foreground">Columns: <b className="text-foreground">{profile.column_count}</b></span>
-                                {profile.imbalance_warning && (
-                                  <span className="text-amber-600 text-xs bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">⚠ {profile.imbalance_warning}</span>
-                                )}
-                              </div>
-                              <div className="overflow-x-auto">
-                                <div className="grid grid-cols-4 gap-4 mb-6">
-  <div className="bg-white border rounded-lg p-3">
-    <div className="text-xs text-muted-foreground">
-      Rows
-    </div>
-    <div className="font-bold">
-      {profile.row_count.toLocaleString()}
-    </div>
-  </div>
-
-  <div className="bg-white border rounded-lg p-3">
-    <div className="text-xs text-muted-foreground">
-      Columns
-    </div>
-    <div className="font-bold">
-      {profile.column_count}
-    </div>
-  </div>
-
-  <div className="bg-white border rounded-lg p-3">
-    <div className="text-xs text-muted-foreground">
-      Missing %
-    </div>
-    <div className="font-bold">
-      {profile.missing_pct ?? 0}%
-    </div>
-  </div>
-
-  <div className="bg-white border rounded-lg p-3">
-    <div className="text-xs text-muted-foreground">
-      Duplicate Rows
-    </div>
-    <div className="font-bold">
-      0
-    </div>
-  </div>
-</div>
-{profile.warnings?.length ? (
-  <div className="mb-6">
-    <h3 className="font-semibold mb-2">
-      Dataset Warnings
-    </h3>
-
-    <div className="space-y-2">
-      {profile.warnings.map((warning, index) => (
-        <div
-          key={index}
-          className="bg-amber-50 border border-amber-200 text-amber-700 rounded p-2 text-sm"
-        >
-          ⚠ {warning}
-        </div>
-      ))}
-    </div>
-  </div>
-) : null}
-{profile.target && (
-  <div className="mb-6">
-    <h3 className="font-semibold mb-3">
-      Target Analysis
-    </h3>
-
-    <div className="grid grid-cols-4 gap-4">
-      <div>
-        <div className="text-xs text-muted-foreground">
-          Target
-        </div>
-        <div className="font-medium">
-          {profile.target.column}
-        </div>
-      </div>
-
-      <div>
-        <div className="text-xs text-muted-foreground">
-          Type
-        </div>
-        <div className="font-medium">
-          {profile.target.dtype}
-        </div>
-      </div>
-
-      <div>
-        <div className="text-xs text-muted-foreground">
-          Suggested Task
-        </div>
-        <div className="font-medium">
-          {profile.target.suggested_task}
-        </div>
-      </div>
-
-      <div>
-        <div className="text-xs text-muted-foreground">
-          Classes
-        </div>
-        <div className="font-medium">
-          {profile.target.n_unique}
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
-{(profile.feature_engineering?.length ?? 0) > 0 && (
-  <table>
-    <thead>
-      <tr>
-        <th>Feature</th>
-        <th>Issue</th>
-        <th>Suggested Fix</th>
-      </tr>
-    </thead>
-
-    <tbody>
-      {profile.feature_engineering?.map(fe => (
-        <tr key={fe.feature}>
-          <td>{fe.feature}</td>
-          <td>{fe.recommendation}</td>
-          <td>{fe.action}</td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-)}
-{profile.training_recommendations && (
-  <div>
-    <div>
-      Recommended Model:
-      {profile.training_recommendations.suggested_model}
-    </div>
-
-    <div>
-      Preprocessing:
-      {profile.training_recommendations.suggested_preprocessing.join(', ')}
-    </div>
-  </div>
-)}
-{profile.feature_rankings?.length ? (
-  <div className="mb-6">
-    <h3 className="font-semibold mb-3">
-      Feature Importance
-    </h3>
-
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart
-        data={profile.feature_rankings}
-      >
-        <XAxis dataKey="feature" />
-        <YAxis />
-        <Tooltip />
-        <Bar dataKey="score" />
-      </BarChart>
-    </ResponsiveContainer>
-  </div>
-) : null}
-{profile.outliers ? (
-  <div className="mb-6">
-    <h3 className="font-semibold mb-3">
-      Outliers
-    </h3>
-
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart
-        data={Object.entries(profile.outliers).map(
-          ([feature, count]) => ({
-            feature,
-            count,
-          })
-        )}
-      >
-        <XAxis dataKey="feature" />
-        <YAxis />
-        <Tooltip />
-        <Bar dataKey="count" />
-      </BarChart>
-    </ResponsiveContainer>
-  </div>
-) : null}
-{profile.distributions &&
-  
-  Object.entries(profile.distributions).map(
-    ([column, dist]) => (
-      <div
-        key={column}
-        className="mb-8"
-      >
-        <h4 className="font-medium mb-2">
-          {column}
-        </h4>
-
-        <ResponsiveContainer
-          width="100%"
-          height={250}
-        >
-          <BarChart
-            data={dist.bins.map(
-              (bin, index) => ({
-                bin,
-                count:
-                  dist.counts[index],
-              })
-            )}
-          >
-            <XAxis dataKey="bin" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="count" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    )
-  )}
-
-  {profile.correlation_matrix && (
-  <div className="mb-6">
-    <h3 className="font-semibold mb-3">
-      Strongest Correlations
-    </h3>
-
-    <ResponsiveContainer
-      width="100%"
-      height={350}
-    >
-      <BarChart
-        layout="vertical"
-        data={getTopCorrelations(
-          profile.correlation_matrix
-        ).map(item => ({
-          feature:
-            `${item.featureA} ↔ ${item.featureB}`,
-          correlation:
-            Number(
-              item.correlation.toFixed(3)
-            ),
-        }))}
-      >
-        <XAxis type="number" />
-        <YAxis
-          type="category"
-          dataKey="feature"
-          width={220}
-        />
-        <Tooltip />
-        <Bar dataKey="correlation" />
-      </BarChart>
-    </ResponsiveContainer>
-  </div>
-)}
-
-                                <table className="data-table text-xs">
-                                  <thead>
-                                    <tr>
-                                      <th>Column</th><th>Type</th><th>Missing %</th><th>Unique</th><th>Min</th><th>Max</th><th>Mean</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {Object.entries(profile.columns ?? {}).map(([col, info]) => (
-                                      <tr key={col}>
-                                        <td style={{ fontWeight: 500, color: '#111' }}>{col}</td>
-                                        <td style={{ fontFamily: 'monospace' }}>{info.dtype}</td>
-                                        <td style={{ color: info.missing_pct > 10 ? '#d97706' : undefined }}>{info.missing_pct?.toFixed(1)}%</td>
-                                        <td>{info.unique_count}</td>
-                                        <td>{info.min != null ? info.min.toFixed(2) : '—'}</td>
-                                        <td>{info.max != null ? info.max.toFixed(2) : '—'}</td>
-                                        <td>{info.mean != null ? info.mean.toFixed(2) : '—'}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Profile unavailable</p>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </>
-              ))}
-            </tbody>
-          </table>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
 
         {/* Stats */}
@@ -562,6 +228,30 @@ export default function DatasetsView() {
           </div>
         </div>
       </div>
+
+      {/* Profile modal — replaces the old inline expandable table row.
+          Every section from the original (overview, warnings, target analysis,
+          feature importance, outliers, distributions, correlations, feature
+          engineering, training recommendations, column table) lives inside
+          ProfileModal already, so nothing is lost — just relocated. */}
+      <ProfileModal
+        open={analyzingId !== null}
+        onClose={closeProfile}
+        profile={profile}
+        datasetName={activeDataset?.filename ?? ''}
+        selectedTarget={analyzingId != null ? (selectedTargets[analyzingId] ?? '') : ''}
+        onTargetChange={(target) => {
+          if (analyzingId != null) {
+            setSelectedTargets(prev => ({ ...prev, [analyzingId]: target }))
+          }
+        }}
+        onReloadProfile={() => {
+          if (analyzingId != null) {
+            reloadProfile(analyzingId, selectedTargets[analyzingId] ?? '')
+          }
+        }}
+        loading={profileLoading}
+      />
     </div>
   )
 }

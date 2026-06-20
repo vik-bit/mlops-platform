@@ -10,6 +10,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   isLoading?: boolean;
+  toolsUsed?: string[];
 }
 
 export function ChatPanel() {
@@ -33,6 +34,7 @@ export function ChatPanel() {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: response.response,
+        toolsUsed: response.tools_used,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);

@@ -282,6 +282,17 @@ export const auth = {
 // ─── Datasets ─────────────────────────────────────────────────────────────────
 
 export const datasets = {
+  profile: (
+  id: number,
+  targetColumn?: string
+) =>
+  request(
+    `/api/datasets/datasets/${id}/profile${
+      targetColumn
+        ? `?target_column=${encodeURIComponent(targetColumn)}`
+        : ''
+    }`
+  ),
   list: () =>
     request<Dataset[]>('/api/datasets/datasets'),
 
@@ -512,6 +523,7 @@ export interface CopilotChatRequest {
 export interface CopilotChatResponse {
   response: string
   context_length: number
+  tools_used?: string[]
 }
 
 export interface CopilotSHAPRequest {
@@ -577,6 +589,8 @@ export interface CopilotHealthResponse {
   service: string
   llm_provider: string
   llm_model: string
+  tool_calling?: boolean
+  tools_available?: number
 }
 
 export const copilot = {

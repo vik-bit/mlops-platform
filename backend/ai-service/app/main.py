@@ -4,25 +4,27 @@ from contextlib import asynccontextmanager
 
 from app.routes.copilot import router as copilot_router
 from app.core.config import settings
+from app.services.tools import COPILOT_TOOLS
+from app.services.http_client import get_client, close_client
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage app lifecycle."""
-    print(f"AI Service starting with LLM provider: {settings.LLM_PROVIDER}")
-    print(f"Model: {settings.LLM_MODEL}")
+    print(f"AI Service starting — provider: {settings.LLM_PROVIDER}, model: {settings.LLM_MODEL}")
+    print(f"Tool calling enabled with {len(COPILOT_TOOLS)} tools")
+    await get_client()  # warm up shared httpx client (IPv4-only, tuned keepalive)
     yield
+    await close_client()  # clean shutdown, no leaked sockets
     print("AI Service shutting down")
 
 
 app = FastAPI(
     title="MLOps AI Service",
-    description="AI/LLM layer for MLOps platform - AI Copilot for explaining models, drift, and comparisons",
-    version="2.1.0",
-    lifespan=lifespan
+    description="MLOps Copilot — Groq-powered agent with MLflow, Prometheus, deployment, and training tools",
+    version="2.3.0",
+    lifespan=lifespan,
 )
 
-# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -41,42 +43,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routes
 app.include_router(copilot_router)
 
 
 @app.get("/")
 async def root():
-    """Root endpoint."""
     return {
         "service": "MLOps AI Service",
-        "version": "2.1.0",
-        "phase": "Phase 2.1 - AI Copilot",
+        "version": "2.3.0",
+        "phase": "Phase 2.3 — MLOps Copilot with Tool Calling",
         "llm_provider": settings.LLM_PROVIDER,
+        "llm_model": settings.LLM_MODEL,
         "endpoints": {
-            "chat": "/api/copilot/chat",
-            "explain_shap": "/api/copilot/explain-shap",
-            "explain_drift": "/api/copilot/explain-drift",
-            "compare_models": "/api/copilot/compare-models",
-            "health": "/api/copilot/health"
-        }
+            "chat": "/copilot/chat",
+            "tools": "/copilot/tools",
+            "explain_shap": "/copilot/explain-shap",
+            "explain_drift": "/copilot/explain-drift",
+            "compare_models": "/copilot/compare-models",
+            "health": "/copilot/health",
+        },
     }
 
 
 @app.get("/health")
 async def health():
-    """Health check."""
-    return {
-        "status": "healthy",
-        "service": "ai-service"
-    }
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8005,
-        reload=True
-    )
+    return {"status": "healthy", "service": "ai-service"}

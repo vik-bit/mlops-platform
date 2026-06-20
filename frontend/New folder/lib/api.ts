@@ -518,7 +518,7 @@ export const monitoring = {
 }
 
 // ─── AI Copilot — /api/copilot/... ───────────────────────────────────────────
-// These endpoints connect to the AI Service (Ollama backend)
+// Groq-powered agent with MLflow, Prometheus, deployment, and training tools
 
 export interface CopilotChatRequest {
   message: string
@@ -528,6 +528,7 @@ export interface CopilotChatRequest {
 export interface CopilotChatResponse {
   response: string
   context_length: number
+  tools_used?: string[]
 }
 
 export interface CopilotSHAPRequest {
@@ -593,6 +594,8 @@ export interface CopilotHealthResponse {
   service: string
   llm_provider: string
   llm_model: string
+  tool_calling?: boolean
+  tools_available?: number
 }
 
 async function copilotRequest<T>(

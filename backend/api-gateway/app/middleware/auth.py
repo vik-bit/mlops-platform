@@ -39,7 +39,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         try:
 
-            token = auth_header.split(" ")[1]
+            # split() + IndexError is moved inside the try block — a header
+            # like "Bearer" with no token, or one with no space at all,
+            # previously raised an uncaught IndexError here (a 500), instead
+            # of falling through to the same clean 401 a bad/expired JWT gets.
+            scheme, _, token = auth_header.partition(" ")
+
+            if scheme.lower() != "bearer" or not token:
+                raise ValueError("Malformed Authorization header")
 
             payload = verify_token(token)
 

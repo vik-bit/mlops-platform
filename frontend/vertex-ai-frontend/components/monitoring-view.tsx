@@ -1,9 +1,17 @@
 'use client'
 
-import { JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCircle, AlertCircle, Clock, Zap, BarChart3, Activity, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import { useDeployments, useModels } from '@/lib/hooks'
 import { monitoring, ModelStats, PredictionHistoryEntry, DriftResult } from '@/lib/api'
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table'
 
 interface ModelCard {
   modelId: number; modelName: string; modelVersion: string
@@ -33,6 +41,21 @@ function DriftBadge({ level }: { level: string }) {
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${map[level] ?? map.unknown}`}>
       {level.charAt(0).toUpperCase() + level.slice(1)}
+    </span>
+  )
+}
+
+function StatusPill({ status }: { status: string }) {
+  const isSuccess = status === 'success'
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+        isSuccess
+          ? 'text-green-700 bg-green-50 border border-green-200'
+          : 'text-red-600 bg-red-50 border border-red-200'
+      }`}
+    >
+      {status}
     </span>
   )
 }
@@ -199,7 +222,7 @@ export default function MonitoringView() {
                   </div>
                 </div>
 
-                {/* History */}
+                {/* History — shadcn Table instead of raw <table> */}
                 {card.showHistory && (
                   <div style={{ borderTop: '1px solid #ebebea' }}>
                     {card.loadingHistory ? (
@@ -207,32 +230,38 @@ export default function MonitoringView() {
                     ) : card.history.length === 0 ? (
                       <div className="p-4 text-center text-sm text-muted-foreground">No predictions recorded yet</div>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="data-table" style={{ margin: 0 }}>
-                          <thead>
-                            <tr style={{ background: '#fafaf8' }}>
-                              <th style={{ padding: '10px 16px' }}>ID</th>
-                              <th style={{ padding: '10px 16px' }}>Prediction</th>
-                              <th style={{ padding: '10px 16px' }}>Latency</th>
-                              <th style={{ padding: '10px 16px' }}>Status</th>
-                              <th style={{ padding: '10px 16px' }}>Time</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {card.history.map(h => (
-                              <tr key={h.id}>
-                                <td style={{ padding: '8px 16px', fontFamily: 'monospace', fontSize: 11, color: '#b8b8b4' }}>#{h.id}</td>
-                                <td style={{ padding: '8px 16px', fontWeight: 500, color: '#111' }}>{h.prediction}</td>
-                                <td style={{ padding: '8px 16px' }}>{h.latency_ms?.toFixed(1)}ms</td>
-                                <td style={{ padding: '8px 16px' }}>
-                                  <span className={`pill ${h.status === 'success' ? 'pill-green' : 'pill-red'}`}>{h.status}</span>
-                                </td>
-                                <td style={{ padding: '8px 16px', fontSize: 11 }}>{new Date(h.created_at).toLocaleString()}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-secondary/40">
+                            <TableHead className="w-[80px]">ID</TableHead>
+                            <TableHead>Prediction</TableHead>
+                            <TableHead>Latency</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Time</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {card.history.map(h => (
+                            <TableRow key={h.id}>
+                              <TableCell className="font-mono text-xs text-muted-foreground">
+                                #{h.id}
+                              </TableCell>
+                              <TableCell className="font-medium text-foreground">
+                                {h.prediction}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {h.latency_ms?.toFixed(1)}ms
+                              </TableCell>
+                              <TableCell>
+                                <StatusPill status={h.status} />
+                              </TableCell>
+                              <TableCell className="text-right text-xs text-muted-foreground">
+                                {new Date(h.created_at).toLocaleString()}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     )}
                   </div>
                 )}
@@ -277,28 +306,32 @@ export default function MonitoringView() {
                               )}
 
                               {Object.entries(card.drift.features).length > 0 && (
-                                <div className="overflow-x-auto">
-                                  <table className="data-table text-xs">
-                                    <thead>
-                                      <tr>
-                                        <th>Feature</th><th>Type</th><th>PSI</th><th>Drift</th><th>Samples</th><th>Current Mean</th><th>Baseline Mean</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {Object.entries(card.drift.features as Record<string, { type?: string; psi?: number; drift_level?: string; status?: string; samples?: number; current_mean?: number; baseline_mean?: number }>).map(([feat, info]) => (
-                                        <tr key={feat}>
-                                          <td style={{ fontWeight: 500, color: '#111' }}>{feat}</td>
-                                          <td>{info.type ?? '—'}</td>
-                                          <td>{info.psi?.toFixed(4) ?? '—'}</td>
-                                          <td>{info.drift_level ? <DriftBadge level={info.drift_level} /> : info.status ?? '—'}</td>
-                                          <td>{info.samples}</td>
-                                          <td>{info.current_mean?.toFixed(3) ?? '—'}</td>
-                                          <td>{info.baseline_mean?.toFixed(3) ?? '—'}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Feature</TableHead>
+                                      <TableHead>Type</TableHead>
+                                      <TableHead>PSI</TableHead>
+                                      <TableHead>Drift</TableHead>
+                                      <TableHead>Samples</TableHead>
+                                      <TableHead>Current Mean</TableHead>
+                                      <TableHead>Baseline Mean</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {Object.entries(card.drift.features as Record<string, { type?: string; psi?: number; drift_level?: string; status?: string; samples?: number; current_mean?: number; baseline_mean?: number }>).map(([feat, info]) => (
+                                      <TableRow key={feat}>
+                                        <TableCell className="font-medium text-foreground">{feat}</TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">{info.type ?? '—'}</TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">{info.psi?.toFixed(4) ?? '—'}</TableCell>
+                                        <TableCell>{info.drift_level ? <DriftBadge level={info.drift_level} /> : <span className="text-sm text-muted-foreground">{info.status ?? '—'}</span>}</TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">{info.samples}</TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">{info.current_mean?.toFixed(3) ?? '—'}</TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">{info.baseline_mean?.toFixed(3) ?? '—'}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
                               )}
                             </>
                           )}

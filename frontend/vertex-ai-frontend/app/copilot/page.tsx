@@ -1,85 +1,167 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { ToolTabs, type ToolType } from '@/components/tool-tabs';
-import { ChatPanel } from '@/components/chat-panel';
-import { SHAPPanel } from '@/components/shap-panel';
-import { DriftPanel } from '@/components/drift-panel';
-import { ComparisonPanel } from '@/components/comparison-panel';
-import { copilot } from '@/lib/api';
-import { Sparkles, Wifi, WifiOff } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState, useRef, useEffect } from "react";
+import { ChatInput } from "@/components/chat-input";
+import { MessageBubble } from "@/components/message-bubble";
+import { ErrorModal } from "@/components/error-modal";
 
-export default function CopilotPage() {
-  const [activeTool, setActiveTool] = useState<ToolType>('chat');
-  const [health, setHealth] = useState<{ status: string; llm_model: string } | null>(null);
-  const [healthError, setHealthError] = useState(false);
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+const API_URL = "http://localhost:8005/copilot/chat";
+
+export default function ChatPage() {
+  const [messages, setMessages] = useState<Message[]>([
+    { role: "assistant", content: "MLOps Copilot ready. How can I help?" },
+  ]);
+  const [input, setInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState<{
+    type: "error" | "rate-limit";
+    message: string;
+  } | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    copilot
-      .health()
-      .then((h) => setHealth(h))
-      .catch(() => setHealthError(true));
-  }, []);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isSending]);
 
-  const renderPanel = () => {
-    switch (activeTool) {
-      case 'chat':       return <ChatPanel />;
-      case 'shap':       return <SHAPPanel />;
-      case 'drift':      return <DriftPanel />;
-      case 'comparison': return <ComparisonPanel />;
-      default:           return <ChatPanel />;
+  const sendMessage = async () => {
+    const trimmed = input.trim();
+    if (!trimmed || isSending) return;
+
+    const userMsg: Message = { role: "user", content: trimmed };
+    setMessages((m) => [...m, userMsg]);
+    setInput("");
+    setIsSending(true);
+
+    abortControllerRef.current = new AbortController();
+
+    try {
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("mlops_token")
+          : null;
+
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message: trimmed }),
+        signal: abortControllerRef.current.signal,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const detail =
+          data.detail ||
+          (res.status === 429
+            ? "AI service is at capacity. Please try again shortly."
+            : "Something went wrong. Please try again.");
+
+        setError({
+          type: res.status === 429 ? "rate-limit" : "error",
+          message: detail,
+        });
+        setIsSending(false);
+        return;
+      }
+
+      // Backend returns one complete JSON object — { response, context_length, tools_used }
+      // NOT a server-sent event stream. The previous version tried to read
+      // res.body as an SSE stream and looked for a "content" field that
+      // never existed in this payload shape, so hasContent stayed false
+      // and nothing ever rendered even though the network tab showed 200.
+      const data = await res.json();
+
+      if (!data.response) {
+        setError({
+          type: "error",
+          message: "No response field in the AI service reply.",
+        });
+        setIsSending(false);
+        return;
+      }
+
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: data.response },
+      ]);
+      setIsSending(false);
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        setIsSending(false);
+        return;
+      }
+      setError({
+        type: "error",
+        message:
+          "Could not reach the AI service. Is it running? Please check your connection and try again.",
+      });
+      setIsSending(false);
     }
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Header */}
-      <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="text-base font-semibold text-foreground">AI Copilot</h1>
-            <p className="text-xs text-muted-foreground">MLOps Intelligence Assistant</p>
-          </div>
+    <div className="flex h-screen flex-col bg-background">
+      <header className="border-b border-border bg-card px-4 py-4 sm:px-6">
+        <div className="mx-auto max-w-2xl">
+          <h1 className="text-xl font-semibold text-foreground">
+            MLOps Copilot
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            AI-powered assistance for your ML operations
+          </p>
         </div>
+      </header>
 
-        {/* Health badge */}
-        <div
-          className={cn(
-            'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium',
-            healthError
-              ? 'border-destructive/30 bg-destructive/10 text-destructive'
-              : health
-              ? 'border-green-300 bg-green-50 text-green-700'
-              : 'border-border bg-secondary text-muted-foreground'
+      <main className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-2xl space-y-6 px-4 py-6 sm:px-6">
+          {messages.map((message, index) => (
+            <MessageBubble
+              key={index}
+              role={message.role}
+              content={message.content}
+            />
+          ))}
+          {/* isLoading (not isStreaming) is the prop MessageBubble actually
+              checks to render the bouncing three-dot indicator. This was
+              previously passed as isStreaming, which MessageBubble doesn't
+              read at all — so isLoading stayed undefined/falsy, the dots
+              never rendered, and the empty-content fallback ("No response")
+              showed instead for the entire wait. */}
+          {isSending && (
+            <MessageBubble role="assistant" content="" isLoading />
           )}
-        >
-          {healthError ? (
-            <>
-              <WifiOff className="w-3 h-3" />
-              Disconnected
-            </>
-          ) : health ? (
-            <>
-              <Wifi className="w-3 h-3" />
-              {health.llm_model}
-            </>
-          ) : (
-            <span className="animate-pulse">Connecting…</span>
-          )}
+
+          <div ref={messagesEndRef} />
         </div>
-      </div>
+      </main>
 
-      {/* Tool Tabs */}
-      <ToolTabs activeTool={activeTool} onToolChange={setActiveTool} />
+      <footer className="border-t border-border bg-background px-4 py-4 sm:px-6">
+        <div className="mx-auto max-w-2xl">
+          <ChatInput
+            value={input}
+            onChange={setInput}
+            onSubmit={sendMessage}
+            isDisabled={isSending}
+            placeholder="Ask me anything about your MLOps..."
+          />
+        </div>
+      </footer>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-hidden">
-        {renderPanel()}
-      </div>
+      <ErrorModal
+        isOpen={error !== null}
+        title={error?.type === "rate-limit" ? "Rate Limit Reached" : "Error"}
+        message={error?.message || ""}
+        type={error?.type}
+        onDismiss={() => setError(null)}
+      />
     </div>
   );
 }

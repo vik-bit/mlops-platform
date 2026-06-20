@@ -38,7 +38,7 @@ export default function CopilotPage() {
             </div>
           </div>
           <div className="text-sm text-gray-400">
-            Connected to Ollama • neural-chat
+            Powered by Groq • Tool calling enabled
           </div>
         </div>
       </div>

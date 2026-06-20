@@ -9,7 +9,7 @@ import DeploymentsView from '@/components/deployments-view'
 import MonitoringView from '@/components/monitoring-view'
 import DatasetsView from '@/components/datasets-view'
 import CopilotPage from '@/app/copilot/page'
-import { getToken } from '@/lib/api'
+import { auth, getToken, clearToken } from '@/lib/api'
 
 export default function Home() {
   const router = useRouter()
@@ -17,11 +17,42 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (!getToken()) {
-      router.push('/login')
-      return
+    let cancelled = false
+
+    async function verifySession() {
+      const token = getToken()
+
+      // No token at all — straight to login, no network call needed.
+      if (!token) {
+        router.push('/login')
+        return
+      }
+
+      // A token exists in localStorage, but that only proves a PAST login —
+      // it doesn't prove the token is still valid (expired, backend restarted,
+      // user deleted, secret rotated, etc.). Verify it against the backend
+      // before trusting it.
+      try {
+        await auth.me()
+        if (!cancelled) setIsLoading(false)
+      } catch {
+        // 401 (or any failure) means the token is stale/invalid.
+        // auth.me()'s underlying request() already clears the token and
+        // redirects on a 401, but we clear + redirect here too as a
+        // belt-and-suspenders fallback for non-401 failures (e.g. network
+        // error while the gateway is restarting).
+        if (!cancelled) {
+          clearToken()
+          router.push('/login')
+        }
+      }
     }
-    setIsLoading(false)
+
+    verifySession()
+
+    return () => {
+      cancelled = true
+    }
   }, [router])
 
   if (isLoading) {
