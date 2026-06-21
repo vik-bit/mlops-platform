@@ -21,41 +21,25 @@ services:
         fromDatabase:
           name: mlops-postgres
           property: connectionString
-      # NOTE: fromService's `hostport` property returns a bare "host:port"
-      # string with no scheme (no http://). Every *_SERVICE_URL below is
-      # built the same way: a base value with the scheme, then the actual
-      # host:port appended via a startCommand wrapper, OR — simpler and
-      # what we use here — each downstream service is reached over Render's
-      # private network using the explicit type + property combo, and the
-      # http:// prefix is added inside each service's own config code
-      # (Settings classes already default to constructing the full URL).
-      # If your shared/config.py expects a literal "http://host:port" string
-      # already, see the "URL scheme" note in render-deploy-notes.md.
+      # FIX: fromService + hostport returns a bare "name:port" string with
+      # no scheme — that's the literal cause of "URL scheme is not supported"
+      # errors in any client (fetch, httpx, requests) reading these vars.
+      # Render free-tier services communicate over the public internet using
+      # the predictable https://<service-name>.onrender.com pattern, so we
+      # set that directly as a plain string instead of relying on fromService.
+      #
+      # CONFIRMED against Render dashboard — exact match to the bare
+      # service name pattern, no random suffix appended.
       - key: DATASET_SERVICE_URL
-        fromService:
-          type: web
-          name: mlops-dataset-service
-          property: hostport
+        value: https://mlops-dataset-service.onrender.com
       - key: TRAINING_SERVICE_URL
-        fromService:
-          type: web
-          name: mlops-training-service
-          property: hostport
+        value: https://mlops-training-service.onrender.com
       - key: DEPLOYMENT_SERVICE_URL
-        fromService:
-          type: web
-          name: mlops-deployment-service
-          property: hostport
+        value: https://mlops-deployment-service.onrender.com
       - key: MONITORING_SERVICE_URL
-        fromService:
-          type: web
-          name: mlops-monitoring-service
-          property: hostport
+        value: https://mlops-monitoring-service.onrender.com
       - key: AI_SERVICE_URL
-        fromService:
-          type: web
-          name: mlops-ai-service
-          property: hostport
+        value: https://mlops-ai-service.onrender.com
     healthCheckPath: /health
 
   # ── Dataset Service ───────────────────────────────────────────────────────────
@@ -88,11 +72,13 @@ services:
         fromDatabase:
           name: mlops-postgres
           property: connectionString
+      # FIX: same hostport scheme issue — MLflow's own server URL also
+      # needs an explicit scheme or the MLflow client inside training.py
+      # will fail to connect the same way the frontend failed to fetch.
+      # CONFIRMED — image-runtime services get a random Render suffix,
+      # unlike the docker-runtime services above which kept bare names.
       - key: MLFLOW_URL
-        fromService:
-          type: web
-          name: mlops-mlflow
-          property: hostport
+        value: https://mlops-mlflow-cxbz.onrender.com
     healthCheckPath: /health
 
   # ── Deployment Service ────────────────────────────────────────────────────────
@@ -151,31 +137,17 @@ services:
         value: "2048"
       - key: LLM_TIMEOUT
         value: "120"
+      # CONFIRMED against Render dashboard
       - key: DEPLOYMENT_SERVICE_URL
-        fromService:
-          type: web
-          name: mlops-deployment-service
-          property: hostport
+        value: https://mlops-deployment-service.onrender.com
       - key: MONITORING_SERVICE_URL
-        fromService:
-          type: web
-          name: mlops-monitoring-service
-          property: hostport
+        value: https://mlops-monitoring-service.onrender.com
       - key: TRAINING_SERVICE_URL
-        fromService:
-          type: web
-          name: mlops-training-service
-          property: hostport
+        value: https://mlops-training-service.onrender.com
       - key: MLFLOW_URL
-        fromService:
-          type: web
-          name: mlops-mlflow
-          property: hostport
+        value: https://mlops-mlflow-cxbz.onrender.com  # CONFIRMED — image-runtime services get a random suffix
       - key: PROMETHEUS_URL
-        fromService:
-          type: web
-          name: mlops-prometheus
-          property: hostport
+        value: https://mlops-prometheus.onrender.com  # CONFIRMED
     healthCheckPath: /health
 
   # ── MLflow ────────────────────────────────────────────────────────────────────
@@ -210,8 +182,18 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
+      # FIX: this was the exact source of your error. NEXT_PUBLIC_API_BASE_URL
+      # was being set to a bare "mlops-api-gateway:8000" string with no
+      # scheme via fromService/hostport. api.ts does:
+      #   const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'
+      #   fetch(`${BASE}${path}`)
+      # with nothing prepending http:// or https://, so the browser tried
+      # to fetch a URL with scheme "mlops-api-gateway" — which doesn't exist
+      # as a URI scheme, hence "URL scheme is not supported".
       - key: NEXT_PUBLIC_API_BASE_URL
-        fromService:
-          type: web
-          name: mlops-api-gateway
-          property: hostport
+        value: https://mlops-api-gateway.onrender.com
+      # Set this too if the copilot chat page calls a separate base URL —
+      # check app/copilot/page.tsx or chat-panel.tsx for COPILOT_BASE/API_URL
+      # and point it at the gateway or ai-service the same way.
+      - key: NEXT_PUBLIC_COPILOT_BASE_URL
+        value: https://mlops-api-gateway.onrender.com/api/copilot
