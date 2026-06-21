@@ -1,5 +1,6 @@
 import ast
 import json
+import os
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -196,12 +197,27 @@ CPU_USAGE       = Gauge("system_cpu_usage_percent",      "CPU usage percent")
 MEMORY_USAGE    = Gauge("system_memory_usage_percent",   "Memory usage percent")
 DISK_USAGE      = Gauge("system_disk_usage_percent",     "Disk usage percent")
 
+# FIX: every URL here was hardcoded to a Docker Compose hostname
+# (e.g. "http://dataset-service:8000/docs"). On Render those hostnames don't
+# resolve, so every requests.get() below threw a ConnectionError, which the
+# except block silently turned into {"status": "offline", "error": ...} —
+# meaning every single service has been showing as "offline" in the System
+# Health panel even though all 5 are actually running fine. This was a
+# *silent* failure (caught exception, no 500, no log noise) which is why it
+# didn't show up in any of the error reports so far this session — the
+# dashboard just quietly lied about service health.
+#
+# Each *_SERVICE_URL env var is set in render.yaml to the real
+# https://mlops-<service>.onrender.com URL. /docs is appended the same way
+# as before so this still hits each service's FastAPI docs page as a
+# lightweight liveness probe (could be swapped for /health if preferred —
+# /docs works fine here since we only care about getting any 200 back).
 SERVICES = {
-    "dataset-service":    "http://dataset-service:8000/docs",
-    "training-service":   "http://training-service:8000/docs",
-    "deployment-service": "http://deployment-service:8000/docs",
-    "monitoring-service": "http://monitoring-service:8000/docs",
-    "mlflow":             "http://mlflow:5000",
+    "dataset-service":    f"{os.environ.get('DATASET_SERVICE_URL',   'http://dataset-service:8000')}/docs",
+    "training-service":   f"{os.environ.get('TRAINING_SERVICE_URL',  'http://training-service:8000')}/docs",
+    "deployment-service": f"{os.environ.get('DEPLOYMENT_SERVICE_URL','http://deployment-service:8000')}/docs",
+    "monitoring-service": f"{os.environ.get('MONITORING_SERVICE_URL','http://monitoring-service:8000')}/docs",
+    "mlflow":             os.environ.get('MLFLOW_URL', 'http://mlflow:5000'),
 }
 
 

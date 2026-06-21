@@ -1,7 +1,8 @@
+import os
 import requests
 
 
-MONITORING_URL = "http://monitoring-service:8000"
+MONITORING_URL = os.environ.get("MONITORING_URL", "http://monitoring-service:8000")
 
 
 def log_prediction(

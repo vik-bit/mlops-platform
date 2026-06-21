@@ -1,8 +1,12 @@
+import os
 import mlflow
 from typing import Any, Dict, Optional
 
-mlflow.set_tracking_uri("http://mlflow:5000")
-mlflow.set_experiment("training-service")
+MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+MLFLOW_EXPERIMENT_NAME = os.environ.get("MLFLOW_EXPERIMENT_NAME", "training-service")
+
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
 
 
 def log_training(
