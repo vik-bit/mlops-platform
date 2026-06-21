@@ -1,0 +1,126 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-backend-services:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - dataset-service
+          - training-service
+          - deployment-service
+          - monitoring-service
+          - ai-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/${{ matrix.service }}/Dockerfile
+          push: false
+          tags: mlops-${{ matrix.service }}:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+
+  python-syntax-check:
+    name: Python syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile-check all Python files
+        run: |
+          find backend -name "*.py" -not -path "*/node_modules/*" -print0 \
+            | xargs -0 -n1 python -m py_compile
+
+  # ── Deploy ───────────────────────────────────────────────────────────────────
+  # Runs ONLY if every build/test job above succeeded, and ONLY on a real push
+  # to main (not on PRs — you don't want every PR branch deploying to prod).
+  # This is the explicit CD step: build/test gates deploy, and the deploy
+  # itself is visible right here in the Actions tab instead of happening
+  # silently inside Render's own dashboard.
+  deploy:
+    name: Deploy to Render
+    needs: [build-backend-services, build-frontend, python-syntax-check]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy hooks
+        run: |
+          set -e
+          services=(
+            "API_GATEWAY"
+            "DATASET_SERVICE"
+            "TRAINING_SERVICE"
+            "DEPLOYMENT_SERVICE"
+            "MONITORING_SERVICE"
+            "AI_SERVICE"
+            "FRONTEND"
+          )
+          for svc in "${services[@]}"; do
+            var_name="RENDER_DEPLOY_HOOK_${svc}"
+            hook_url="${!var_name}"
+            if [ -z "$hook_url" ]; then
+              echo "::warning::No deploy hook set for $svc — skipping"
+              continue
+            fi
+            echo "Triggering deploy for $svc"
+            curl -fsS -X POST "$hook_url"
+          done
+        env:
+          RENDER_DEPLOY_HOOK_API_GATEWAY: ${{ secrets.RENDER_DEPLOY_HOOK_API_GATEWAY }}
+          RENDER_DEPLOY_HOOK_DATASET_SERVICE: ${{ secrets.RENDER_DEPLOY_HOOK_DATASET_SERVICE }}
+          RENDER_DEPLOY_HOOK_TRAINING_SERVICE: ${{ secrets.RENDER_DEPLOY_HOOK_TRAINING_SERVICE }}
+          RENDER_DEPLOY_HOOK_DEPLOYMENT_SERVICE: ${{ secrets.RENDER_DEPLOY_HOOK_DEPLOYMENT_SERVICE }}
+          RENDER_DEPLOY_HOOK_MONITORING_SERVICE: ${{ secrets.RENDER_DEPLOY_HOOK_MONITORING_SERVICE }}
+          RENDER_DEPLOY_HOOK_AI_SERVICE: ${{ secrets.RENDER_DEPLOY_HOOK_AI_SERVICE }}
+          RENDER_DEPLOY_HOOK_FRONTEND: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
