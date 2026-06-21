@@ -206,6 +206,7 @@ services:
     name: mlops-frontend
     runtime: node
     plan: free
+    rootDir: frontend/vertex-ai-frontend
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
