@@ -1,9 +1,17 @@
+import os
 import time
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 
-DATABASE_URL = "postgresql://admin:admin@postgres:5432/mlops_platform"
+# Render injects this via render.yaml's fromDatabase: connectionString.
+# Locally (docker-compose), it falls back to the old hardcoded value so
+# nothing breaks in dev. Never hardcode this as the only option — Render
+# has no service literally named "postgres" in its DNS.
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://admin:admin@postgres:5432/mlops_platform",
+)
 
 MAX_RETRIES = 10
 RETRY_DELAY = 5

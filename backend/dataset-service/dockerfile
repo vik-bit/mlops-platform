@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY ./backend/dataset-service /app
-COPY ./shared /shared
+COPY ./shared /app/shared
 
 RUN pip install --no-cache-dir \
     fastapi \
@@ -13,6 +13,6 @@ RUN pip install --no-cache-dir \
     python-multipart \
     pandas
 
-ENV PYTHONPATH=/app:/shared
+ENV PYTHONPATH=/app
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
