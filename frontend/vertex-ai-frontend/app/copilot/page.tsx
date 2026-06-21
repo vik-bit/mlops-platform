@@ -10,7 +10,7 @@ interface Message {
   content: string;
 }
 
-const API_URL = "https://mlops-api-gateway.onrender.com/copilot/chat";
+const API_URL = "https://mlops-ai-service.onrender.com/copilot/chat";
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
