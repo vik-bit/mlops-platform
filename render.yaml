@@ -1,182 +1,207 @@
+databases:
+  - name: mlops-postgres
+    plan: free
+    databaseName: mlops_platform
+    user: admin
+
 services:
-  api-gateway:
-    build:
-      context: .
-      dockerfile: ./backend/api-gateway/Dockerfile
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend/api-gateway/app:/app/app
-      - ./shared:/app/shared
-    env_file:
-      - .env
-    environment:
-      - PYTHONPATH=/app
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - mlops_network
+  # ── API Gateway ──────────────────────────────────────────────────────────────
+  - type: web
+    name: mlops-api-gateway
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/api-gateway/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PYTHONPATH
+        value: /app
+      - key: JWT_SECRET_KEY
+        sync: false  # set manually in Render dashboard — never in this file
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mlops-postgres
+          property: connectionString
+      - key: DATASET_SERVICE_URL
+        fromService:
+          type: web
+          name: mlops-dataset-service
+          property: hostport
+      - key: TRAINING_SERVICE_URL
+        fromService:
+          type: web
+          name: mlops-training-service
+          property: hostport
+      - key: DEPLOYMENT_SERVICE_URL
+        fromService:
+          type: web
+          name: mlops-deployment-service
+          property: hostport
+      - key: MONITORING_SERVICE_URL
+        fromService:
+          type: web
+          name: mlops-monitoring-service
+          property: hostport
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: mlops-ai-service
+          property: hostport
+    healthCheckPath: /health
 
-  dataset-service:
-    build:
-      context: .
-      dockerfile: ./backend/dataset-service/Dockerfile
-    ports:
-      - "8001:8000"
-    volumes:
-      - ./backend/dataset-service/app:/app/app
-      - ./shared:/app/shared
-      - ./datasets:/app/datasets
-    environment:
-      - PYTHONPATH=/app
-    depends_on:
-      - postgres
-    networks:
-      - mlops_network
+  # ── Dataset Service ───────────────────────────────────────────────────────────
+  - type: web
+    name: mlops-dataset-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/dataset-service/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PYTHONPATH
+        value: /app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mlops-postgres
+          property: connectionString
+    healthCheckPath: /health
 
-  training-service:
-    build:
-      context: .
-      dockerfile: ./backend/training-service/Dockerfile
-    ports:
-      - "8002:8000"
-    volumes:
-      - ./backend/training-service:/app
-      - ./shared:/app/shared
-      - ./datasets:/app/datasets
-      - ./saved_models:/app/saved_models
-    environment:
-      - PYTHONPATH=/app
-    networks:
-      - mlops_network
-    depends_on:
-      - postgres
-      - redis
-      - mlflow
+  # ── Training Service ──────────────────────────────────────────────────────────
+  - type: web
+    name: mlops-training-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/training-service/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PYTHONPATH
+        value: /app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mlops-postgres
+          property: connectionString
+      - key: MLFLOW_URL
+        fromService:
+          type: web
+          name: mlops-mlflow
+          property: hostport
+    healthCheckPath: /health
 
-  deployment-service:
-    build:
-      context: .
-      dockerfile: ./backend/deployment-service/Dockerfile
-    ports:
-      - "8003:8000"
-    volumes:
-      - ./backend/deployment-service/app:/app/app
-      - ./shared:/app/shared
-      - ./saved_models:/app/saved_models
-    environment:
-      - PYTHONPATH=/app
-    depends_on:
-      - postgres
-    networks:
-      - mlops_network
+  # ── Deployment Service ────────────────────────────────────────────────────────
+  - type: web
+    name: mlops-deployment-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/deployment-service/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PYTHONPATH
+        value: /app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mlops-postgres
+          property: connectionString
+    healthCheckPath: /health
 
-  monitoring-service:
-    build:
-      context: .
-      dockerfile: ./backend/monitoring-service/Dockerfile
-    ports:
-      - "8004:8000"
-    volumes:
-      - ./backend/monitoring-service/app:/app/app
-      - ./shared:/app/shared
-    environment:
-      - PYTHONPATH=/app
-    depends_on:
-      - postgres
-    networks:
-      - mlops_network
+  # ── Monitoring Service ─────────────────────────────────────────────────────────
+  - type: web
+    name: mlops-monitoring-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/monitoring-service/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PYTHONPATH
+        value: /app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mlops-postgres
+          property: connectionString
+    healthCheckPath: /health
 
-  postgres:
-    image: postgres:16
-    networks:
-      - mlops_network
-    container_name: mlops-postgres
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
-      POSTGRES_DB: mlops_platform
-    ports:
-      - "5433:5432"
+  # ── AI Service (Groq) ──────────────────────────────────────────────────────────
+  - type: web
+    name: mlops-ai-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/ai-service/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: SERVICE_NAME
+        value: ai-service
+      - key: ENVIRONMENT
+        value: production
+      - key: LLM_PROVIDER
+        value: groq
+      - key: LLM_API_KEY
+        sync: false  # set manually in Render dashboard — never in this file
+      - key: LLM_MODEL
+        value: llama-3.3-70b-versatile
+      - key: LLM_TEMPERATURE
+        value: "0.3"
+      - key: LLM_MAX_TOKENS
+        value: "2048"
+      - key: LLM_TIMEOUT
+        value: "120"
+      - key: DEPLOYMENT_SERVICE_URL
+        fromService:
+          type: web
+          name: mlops-deployment-service
+          property: hostport
+      - key: MONITORING_SERVICE_URL
+        fromService:
+          type: web
+          name: mlops-monitoring-service
+          property: hostport
+      - key: TRAINING_SERVICE_URL
+        fromService:
+          type: web
+          name: mlops-training-service
+          property: hostport
+      - key: MLFLOW_URL
+        fromService:
+          type: web
+          name: mlops-mlflow
+          property: hostport
+      - key: PROMETHEUS_URL
+        fromService:
+          type: web
+          name: mlops-prometheus
+          property: hostport
+    healthCheckPath: /health
 
-  redis:
-    image: redis:7
-    container_name: mlops-redis
-    ports:
-      - "6379:6379"
-    networks:
-      - mlops_network
+  # ── MLflow ────────────────────────────────────────────────────────────────────
+  - type: web
+    name: mlops-mlflow
+    runtime: docker
+    plan: free
+    image:
+      url: ghcr.io/mlflow/mlflow:v2.12.1
+    dockerCommand: mlflow server --host 0.0.0.0 --port 10000
+    envVars:
+      - key: PORT
+        value: "10000"
 
-  mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.12.1
-    container_name: mlops-mlflow
-    ports:
-      - "5000:5000"
-    networks:
-      - mlops_network
-    command: >
-      mlflow server
-      --host 0.0.0.0
-      --port 5000
+  # ── Prometheus ────────────────────────────────────────────────────────────────
+  - type: web
+    name: mlops-prometheus
+    runtime: docker
+    plan: free
+    image:
+      url: prom/prometheus:latest
+    # NOTE: Render's free tier has no persistent volume mount for images deployed
+    # this way, and prometheus.yml must be baked into a custom image instead of
+    # mounted, since Render can't bind-mount a local file into a stock image.
+    # See render-deploy-notes.md for the two ways to handle this.
 
-  prometheus:
-    networks:
-      - mlops_network
-    image: prom/prometheus
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    depends_on:
-      - monitoring-service
-
-  ai-service:
-    build:
-      context: .
-      dockerfile: ./backend/ai-service/Dockerfile
-    container_name: mlops_ai_service
-    env_file:
-      - .env
-    environment:
-      SERVICE_NAME: "ai-service"
-      ENVIRONMENT: "production"
-
-      LLM_PROVIDER: "groq"
-      LLM_MODEL: "llama-3.3-70b-versatile"
-      LLM_TEMPERATURE: "0.3"
-      LLM_MAX_TOKENS: "2048"
-      LLM_TIMEOUT: "120"
-
-      DEPLOYMENT_SERVICE_URL: "http://deployment-service:8000"
-      MONITORING_SERVICE_URL: "http://monitoring-service:8000"
-      TRAINING_SERVICE_URL: "http://training-service:8000"
-      MLFLOW_URL: "http://mlflow:5000"
-      PROMETHEUS_URL: "http://prometheus:9090"
-    ports:
-      - "8005:8000"
-    networks:
-      - mlops_network
-    restart: unless-stopped
-    depends_on:
-      - training-service
-      - deployment-service
-      - monitoring-service
-      - mlflow
-      - prometheus
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-networks:
-  mlops_network:
+  # ── Frontend (Next.js) ─────────────────────────────────────────────────────────
+  - type: web
+    name: mlops-frontend
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE_URL
+        fromService:
+          type: web
+          name: mlops-api-gateway
+          property: hostport
