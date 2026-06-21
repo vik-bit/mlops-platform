@@ -21,6 +21,16 @@ services:
         fromDatabase:
           name: mlops-postgres
           property: connectionString
+      # NOTE: fromService's `hostport` property returns a bare "host:port"
+      # string with no scheme (no http://). Every *_SERVICE_URL below is
+      # built the same way: a base value with the scheme, then the actual
+      # host:port appended via a startCommand wrapper, OR — simpler and
+      # what we use here — each downstream service is reached over Render's
+      # private network using the explicit type + property combo, and the
+      # http:// prefix is added inside each service's own config code
+      # (Settings classes already default to constructing the full URL).
+      # If your shared/config.py expects a literal "http://host:port" string
+      # already, see the "URL scheme" note in render-deploy-notes.md.
       - key: DATASET_SERVICE_URL
         fromService:
           type: web
@@ -171,7 +181,7 @@ services:
   # ── MLflow ────────────────────────────────────────────────────────────────────
   - type: web
     name: mlops-mlflow
-    runtime: docker
+    runtime: image
     plan: free
     image:
       url: ghcr.io/mlflow/mlflow:v2.12.1
@@ -183,14 +193,13 @@ services:
   # ── Prometheus ────────────────────────────────────────────────────────────────
   - type: web
     name: mlops-prometheus
-    runtime: docker
+    runtime: image
     plan: free
     image:
       url: prom/prometheus:latest
-    # NOTE: Render's free tier has no persistent volume mount for images deployed
-    # this way, and prometheus.yml must be baked into a custom image instead of
-    # mounted, since Render can't bind-mount a local file into a stock image.
-    # See render-deploy-notes.md for the two ways to handle this.
+    # See render-deploy-notes.md — Render can't bind-mount a local
+    # prometheus.yml into a stock image; bake it into a custom Dockerfile
+    # instead (Option B in the notes) if you need a real scrape config.
 
   # ── Frontend (Next.js) ─────────────────────────────────────────────────────────
   - type: web
