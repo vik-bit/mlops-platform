@@ -1,6 +1,5 @@
 {
 	"dependencies": {
-		"@radix-ui/react-toast": "^1.2.15",
-		"fastapi": "^0.0.8"
+		"@radix-ui/react-toast": "^1.2.15"
 	}
 }
