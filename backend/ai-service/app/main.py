@@ -37,6 +37,7 @@ app.add_middleware(
         "http://localhost:8004",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
+        "https://mlops-frontend-5smr.onrender.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],

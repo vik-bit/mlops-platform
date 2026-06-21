@@ -59,6 +59,18 @@ app = FastAPI(
 # FastAPI runs middleware in reverse order, so last-registered runs first.
 # If AuthMiddleware runs before CORS, OPTIONS preflight gets a 401 with no
 # CORS headers, causing "Failed to fetch" on every cross-origin POST/DELETE.
+#
+# FIX: allow_origins was missing the deployed Render frontend URL —
+# only localhost entries were present, so every cross-origin request from
+# https://mlops-frontend-5smr.onrender.com was correctly blocked by the
+# browser (the gateway never even got a chance to reject it; CORS failures
+# happen client-side before the request body is sent for a preflighted
+# request). Added the real frontend origin below.
+#
+# NOTE: if you ever change the frontend's Render URL (e.g. redeploy under
+# a different name/suffix), this list must be updated again — Render's
+# .onrender.com URLs are not guaranteed stable across a full service
+# recreate, only across normal redeploys of the same service.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -66,6 +78,7 @@ app.add_middleware(
         "http://localhost:3001",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
+        "https://mlops-frontend-5smr.onrender.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
