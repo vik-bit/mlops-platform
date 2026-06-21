@@ -59,12 +59,25 @@ def background_training(
         job.status = "running"
         db.commit()
 
-        # Fetch dataset — now uses the real Render URL in production
-        response = requests.get(f"{DATASET_SERVICE_URL}/datasets/{dataset_id}")
-        if response.status_code != 200:
+        # Fetch dataset metadata (need filename for the local temp file extension)
+        meta_response = requests.get(f"{DATASET_SERVICE_URL}/datasets/{dataset_id}")
+        if meta_response.status_code != 200:
             raise Exception("Dataset service unavailable")
+        filename = meta_response.json()["filename"]
 
-        dataset_path = response.json()["path"]
+        # Download the actual file bytes — dataset-service's stored path is on
+        # ITS OWN disk, not shared with this service on Render, so we pull the
+        # content over HTTP and save it locally before loading it.
+        download_response = requests.get(f"{DATASET_SERVICE_URL}/datasets/{dataset_id}/download")
+        if download_response.status_code != 200:
+            raise Exception("Failed to download dataset file")
+
+        local_dir = "/tmp/datasets"
+        os.makedirs(local_dir, exist_ok=True)
+        dataset_path = os.path.join(local_dir, f"{dataset_id}_{filename}")
+        with open(dataset_path, "wb") as f:
+            f.write(download_response.content)
+
         df = load_dataset(dataset_path)
 
         # Train — returns full TrainingResult

@@ -5,6 +5,8 @@ from fastapi import (
     File,
     HTTPException
 )
+from fastapi.responses import FileResponse
+import os
 
 from sqlalchemy.orm import Session
 
@@ -63,6 +65,24 @@ def get_dataset(dataset_id: int, db: Session = Depends(get_db)):
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
     return dataset
+
+
+# ── Download ──────────────────────────────────────────────────────────────────
+# NEW: other services (training-service) have no shared filesystem with this
+# one on Render — they need actual file bytes, not a local path string.
+
+@router.get("/datasets/{dataset_id}/download")
+def download_dataset(dataset_id: int, db: Session = Depends(get_db)):
+    dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    if not os.path.exists(dataset.path):
+        raise HTTPException(status_code=404, detail="Dataset file not found on disk")
+    return FileResponse(
+        path=dataset.path,
+        filename=dataset.filename,
+        media_type="application/octet-stream",
+    )
 
 
 # ── Delete ────────────────────────────────────────────────────────────────────
