@@ -1,4 +1,5 @@
 import json
+import os
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -19,6 +20,16 @@ from app.utils.mlflow_logger import log_training
 
 
 router = APIRouter()
+
+# FIX: was hardcoded to "http://dataset-service:8000" — a Docker Compose
+# hostname that does not resolve on Render, causing every training job to
+# fail at the "Fetch dataset" step with:
+#   HTTPConnectionPool(host='dataset-service', port=8000): Max retries
+#   exceeded ... NameResolutionError("...Failed to resolve 'dataset-service'")
+# Reads DATASET_SERVICE_URL (set in render.yaml to the real
+# https://mlops-dataset-service.onrender.com URL) with the Docker hostname
+# as a fallback so local `docker compose up` is unaffected.
+DATASET_SERVICE_URL = os.environ.get("DATASET_SERVICE_URL", "http://dataset-service:8000")
 
 
 def get_db():
@@ -48,8 +59,8 @@ def background_training(
         job.status = "running"
         db.commit()
 
-        # Fetch dataset
-        response = requests.get(f"http://dataset-service:8000/datasets/{dataset_id}")
+        # Fetch dataset — now uses the real Render URL in production
+        response = requests.get(f"{DATASET_SERVICE_URL}/datasets/{dataset_id}")
         if response.status_code != 200:
             raise Exception("Dataset service unavailable")
 
