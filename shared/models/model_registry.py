@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, func
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, LargeBinary, Text, func
 from shared.database import Base
 
 
@@ -17,9 +17,13 @@ class ModelRegistry(Base):
 
     model_version = Column(String)
 
-    model_path = Column(String)
+    model_path = Column(String)       # kept for compatibility — no longer written to
 
-    metadata_path = Column(String)
+    metadata_path = Column(String)    # kept for compatibility — no longer written to
+
+    model_data = Column(LargeBinary, nullable=True)   # serialized pipeline bytes
+
+    metadata_json = Column(Text, nullable=True)        # feature importance + distribution JSON
 
     stage = Column(String)
 

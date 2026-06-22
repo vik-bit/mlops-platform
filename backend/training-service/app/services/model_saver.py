@@ -1,13 +1,14 @@
+import io
 import joblib
-import os
 
 
-def save_model(model, job_id):
-
-    os.makedirs("saved_models", exist_ok=True)
-
-    path = f"saved_models/model_{job_id}.pkl"
-
-    joblib.dump(model, path)
-
-    return path
+def save_model(model, job_id: int) -> bytes:
+    """
+    Serialize the model pipeline to bytes in memory.
+    The caller stores these bytes in the ModelRegistry.model_data column
+    in Postgres instead of writing to local disk — survives service restarts.
+    """
+    buf = io.BytesIO()
+    joblib.dump(model, buf)
+    buf.seek(0)
+    return buf.read()

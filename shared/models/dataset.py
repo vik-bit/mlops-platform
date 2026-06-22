@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, LargeBinary
 from datetime import datetime
 
 from shared.database import Base
@@ -13,6 +13,8 @@ class Dataset(Base):
     filename = Column(String)
 
     path = Column(String)
+
+    content = Column(LargeBinary, nullable=True)  # file bytes stored in Postgres
 
     created_at = Column(
         DateTime,

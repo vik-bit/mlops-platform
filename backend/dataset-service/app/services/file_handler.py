@@ -1,21 +1,8 @@
-import os
-import shutil
-from fastapi import UploadFile
-
-
-UPLOAD_DIR = "datasets"
-
-
-def save_uploaded_file(file: UploadFile):
-
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-    file_path = os.path.join(
-        UPLOAD_DIR,
-        file.filename
-    )
-
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    return file_path
+def save_uploaded_file(file) -> bytes:
+    """
+    Read the uploaded file into memory and return raw bytes.
+    The caller stores these bytes in the Dataset.content column in Postgres
+    instead of writing to local disk — no external storage needed, and the
+    file survives service restarts since Postgres is persistent.
+    """
+    return file.file.read()

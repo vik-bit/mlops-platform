@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import pandas as pd
@@ -21,14 +22,6 @@ from app.utils.mlflow_logger import log_training
 
 router = APIRouter()
 
-# FIX: was hardcoded to "http://dataset-service:8000" — a Docker Compose
-# hostname that does not resolve on Render, causing every training job to
-# fail at the "Fetch dataset" step with:
-#   HTTPConnectionPool(host='dataset-service', port=8000): Max retries
-#   exceeded ... NameResolutionError("...Failed to resolve 'dataset-service'")
-# Reads DATASET_SERVICE_URL (set in render.yaml to the real
-# https://mlops-dataset-service.onrender.com URL) with the Docker hostname
-# as a fallback so local `docker compose up` is unaffected.
 DATASET_SERVICE_URL = os.environ.get("DATASET_SERVICE_URL", "http://dataset-service:8000")
 
 
@@ -59,15 +52,13 @@ def background_training(
         job.status = "running"
         db.commit()
 
-        # Fetch dataset metadata (need filename for the local temp file extension)
+        # Fetch dataset metadata
         meta_response = requests.get(f"{DATASET_SERVICE_URL}/datasets/{dataset_id}")
         if meta_response.status_code != 200:
             raise Exception("Dataset service unavailable")
         filename = meta_response.json()["filename"]
 
-        # Download the actual file bytes — dataset-service's stored path is on
-        # ITS OWN disk, not shared with this service on Render, so we pull the
-        # content over HTTP and save it locally before loading it.
+        # Download file bytes from dataset-service (which stores them in Postgres)
         download_response = requests.get(f"{DATASET_SERVICE_URL}/datasets/{dataset_id}/download")
         if download_response.status_code != 200:
             raise Exception("Failed to download dataset file")
@@ -80,7 +71,7 @@ def background_training(
 
         df = load_dataset(dataset_path)
 
-        # Train — returns full TrainingResult
+        # Train
         result = train_model(
             df,
             target_column,
@@ -89,15 +80,12 @@ def background_training(
             hyperparameters=hyperparameters,
         )
 
-        # Save pipeline
-        model_path = save_model(result.pipeline, job_id)
+        # Serialize model to bytes — no local disk write
+        model_bytes = save_model(result.pipeline, job_id)
 
-        # Save feature importance + training distribution baseline into metadata
-        metadata_path = None
+        # Build metadata dict — stored as JSON string in Postgres, not a file
+        metadata_dict = None
         if result.feature_importance:
-            metadata_path = model_path.replace(".pkl", "_metadata.json")
-
-            # Compute per-feature distribution stats for drift baseline
             training_distribution = {}
             X = df.drop(columns=[target_column, "id"], errors="ignore")
             for col in X.columns:
@@ -113,7 +101,6 @@ def background_training(
                         "p50":    round(float(series.quantile(0.50)), 6),
                         "p75":    round(float(series.quantile(0.75)), 6),
                         "p95":    round(float(series.quantile(0.95)), 6),
-                        # Store histogram for PSI computation
                         "hist_counts": [int(v) for v in
                                         pd.cut(series, bins=10).value_counts(sort=False).values],
                         "hist_edges":  [round(float(v), 6) for v in
@@ -126,23 +113,22 @@ def background_training(
                         "frequencies": {str(k): round(float(v), 6) for k, v in vc.items()},
                     }
 
-            with open(metadata_path, "w") as f:
-                json.dump({
-                    "feature_importance":      result.feature_importance,
-                    "model_type":              model_type,
-                    "task_type":               task_type,
-                    "hyperparameters":         hyperparameters,
-                    "training_distribution":   training_distribution,
-                    "training_rows":           len(df),
-                }, f)
+            metadata_dict = {
+                "feature_importance":    result.feature_importance,
+                "model_type":            model_type,
+                "task_type":             task_type,
+                "hyperparameters":       hyperparameters,
+                "training_distribution": training_distribution,
+                "training_rows":         len(df),
+            }
 
-        # Register model
+        # Register model — bytes and metadata go into Postgres columns, not files
         registry_entry = ModelRegistry(
             training_job_id=job.id,
             model_name=f"{model_type}_model",
             model_version="v1",
-            model_path=model_path,
-            metadata_path=metadata_path,
+            model_data=model_bytes,
+            metadata_json=json.dumps(metadata_dict) if metadata_dict else None,
             stage="staging",
             accuracy=str(round(result.accuracy, 4)) if result.accuracy is not None else None,
         )
@@ -168,7 +154,6 @@ def background_training(
 
         db.refresh(job)
 
-        # Update job with ALL metrics
         job.status          = "completed"
         job.accuracy        = result.accuracy
         job.precision       = result.precision
@@ -292,28 +277,16 @@ def get_feature_importance(model_id: int, db: Session = Depends(get_db)):
     model = db.query(ModelRegistry).filter(ModelRegistry.id == model_id).first()
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
-    if not model.metadata_path:
+    if not model.metadata_json:
         raise HTTPException(status_code=404, detail="No metadata for this model")
-    try:
-        with open(model.metadata_path) as f:
-            meta = json.load(f)
-        return {"model_id": model_id, "feature_importance": meta.get("feature_importance", {})}
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Metadata file not found")
+    meta = json.loads(model.metadata_json)
+    return {"model_id": model_id, "feature_importance": meta.get("feature_importance", {})}
 
 
 # ── Job / Model comparison ────────────────────────────────────────────────────
 
 @router.get("/jobs/compare")
-def compare_jobs(
-    ids: str,
-    db: Session = Depends(get_db),
-):
-    """
-    Side-by-side comparison of training jobs.
-    GET /jobs/compare?ids=1,2,3
-    Returns all metrics for each job so the frontend can render a comparison table.
-    """
+def compare_jobs(ids: str, db: Session = Depends(get_db)):
     try:
         job_ids = [int(x.strip()) for x in ids.split(",") if x.strip()]
     except ValueError:
@@ -330,7 +303,6 @@ def compare_jobs(
 
         entry = _job_to_dict(job)
 
-        # Attach registered model info if present
         model = db.query(ModelRegistry).filter(
             ModelRegistry.training_job_id == jid
         ).first()
@@ -340,24 +312,20 @@ def compare_jobs(
             entry["model_version"] = model.model_version
             entry["stage"]         = model.stage
 
-            # Pull feature importance from metadata
-            if model.metadata_path:
+            if model.metadata_json:
                 try:
-                    with open(model.metadata_path) as f:
-                        meta = json.load(f)
+                    meta = json.loads(model.metadata_json)
                     entry["feature_importance"] = meta.get("feature_importance", {})
                 except Exception:
                     pass
 
         results.append(entry)
 
-    # Highlight best per metric
     def _best(key, fn, results):
         candidates = [r for r in results if r.get(key) is not None]
         if not candidates:
             return None
-        best = fn(candidates, key=lambda x: float(x[key] or 0))
-        return best.get("id")
+        return fn(candidates, key=lambda x: float(x[key] or 0)).get("id")
 
     return {
         "jobs":  results,
@@ -383,23 +351,23 @@ def _job_to_dict(job: TrainingJob) -> dict:
             h_params = {}
 
     return {
-        "id":            job.id,
-        "dataset_id":    job.dataset_id,
-        "model_type":    job.model_type,
-        "task_type":     job.task_type,
-        "target_column": job.target_column,
-        "status":        job.status,
-        "accuracy":      str(round(job.accuracy, 4)) if job.accuracy is not None else None,
-        "precision":     job.precision,
-        "recall":        job.recall,
-        "f1_score":      job.f1_score,
-        "r2_score":      job.r2_score,
-        "mae":           job.mae,
-        "rmse":          job.rmse,
-        "cv_mean":       job.cv_mean,
-        "cv_std":        job.cv_std,
+        "id":              job.id,
+        "dataset_id":      job.dataset_id,
+        "model_type":      job.model_type,
+        "task_type":       job.task_type,
+        "target_column":   job.target_column,
+        "status":          job.status,
+        "accuracy":        str(round(job.accuracy, 4)) if job.accuracy is not None else None,
+        "precision":       job.precision,
+        "recall":          job.recall,
+        "f1_score":        job.f1_score,
+        "r2_score":        job.r2_score,
+        "mae":             job.mae,
+        "rmse":            job.rmse,
+        "cv_mean":         job.cv_mean,
+        "cv_std":          job.cv_std,
         "hyperparameters": h_params or {},
-        "mlflow_run_id": job.mlflow_run_id,
-        "error_message": job.error_message,
-        "created_at":    getattr(job, "created_at", None),
+        "mlflow_run_id":   job.mlflow_run_id,
+        "error_message":   job.error_message,
+        "created_at":      getattr(job, "created_at", None),
     }
