@@ -107,6 +107,9 @@ services:
       - key: DATASET_SERVICE_URL
         value: https://mlops-dataset-service.onrender.com
 
+      - key: PROMETHEUS_URL
+        value: https://mlops-prometheus.onrender.com
+
       - key: TRAINING_SERVICE_URL
         value: https://mlops-training-service.onrender.com
 
