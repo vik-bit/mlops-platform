@@ -2,7 +2,9 @@ name: Keep Services Alive
 
 on:
   schedule:
-    - cron: '*/10 * * * *'   # every 10 minutes
+    # GitHub Actions cron schedules run at most every 5 minutes.
+    # Use '*/5' to run every 5 minutes (schedules more frequent than 5 minutes are ignored).
+    - cron: '*/5 * * * *'   # every 5 minutes
   workflow_dispatch:           # allow manual trigger from GitHub Actions UI
 
 jobs:
