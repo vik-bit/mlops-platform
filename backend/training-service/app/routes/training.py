@@ -247,19 +247,21 @@ def delete_training_job(job_id: int, db: Session = Depends(get_db)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    has_relations = db.query(ModelRegistry).filter(
+    models = db.query(ModelRegistry).filter(
         ModelRegistry.training_job_id == job_id
-    ).first()
-    if has_relations:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot delete job {job_id}: it has a registered model. Delete the model first.",
-        )
+    ).all()
+
+    for model in models:
+        db.delete(model)
 
     db.delete(job)
     db.commit()
-    return {"message": f"Training job {job_id} deleted"}
 
+    return {
+        "message": f"Training job {job_id} and related models deleted"
+    }
+
+   
 
 @router.put("/training/{job_id}/cancel")
 def cancel_training_job(job_id: int, db: Session = Depends(get_db)):
