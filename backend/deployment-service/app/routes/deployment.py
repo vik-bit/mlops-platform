@@ -82,7 +82,7 @@ def predict_positional(
 ):
     t0 = time.time()
     model_entry = _get_model_or_404(model_id, db)
-    pipeline = load_model(model_entry.model_path)
+    pipeline = load_model(model_entry.id)  # FIX: was model_entry.model_path (now null)
 
     try:
         prediction = pipeline.predict([request.features])[0]
@@ -104,7 +104,7 @@ def predict_named(
 ):
     t0 = time.time()
     model_entry = _get_model_or_404(model_id, db)
-    pipeline = load_model(model_entry.model_path)
+    pipeline = load_model(model_entry.id)  # FIX: was model_entry.model_path
 
     try:
         input_df = pd.DataFrame([request.features])
@@ -141,7 +141,7 @@ async def predict_batch(
 ):
     t0 = time.time()
     model_entry = _get_model_or_404(model_id, db)
-    pipeline = load_model(model_entry.model_path)
+    pipeline = load_model(model_entry.id)  # FIX: was model_entry.model_path
 
     try:
         contents = await file.read()
@@ -174,7 +174,7 @@ async def predict_batch(
 @router.get("/predict/{model_id}/schema")
 def get_prediction_schema(model_id: int, db: Session = Depends(get_db)):
     model_entry = _get_model_or_404(model_id, db)
-    pipeline = load_model(model_entry.model_path)
+    pipeline = load_model(model_entry.id)  # FIX: was model_entry.model_path
 
     try:
         preprocessor = pipeline.named_steps["preprocessor"]
@@ -183,11 +183,12 @@ def get_prediction_schema(model_id: int, db: Session = Depends(get_db)):
             for col in cols:
                 schema[col] = "numeric" if name == "num" else "categorical"
 
+        # FIX: was open(model_entry.metadata_path) — file no longer exists,
+        # metadata is stored in the metadata_json column instead.
         metadata = {}
-        if model_entry.metadata_path:
+        if model_entry.metadata_json:
             try:
-                with open(model_entry.metadata_path) as f:
-                    metadata = json.load(f)
+                metadata = json.loads(model_entry.metadata_json)
             except Exception:
                 pass
 
@@ -212,40 +213,34 @@ def explain_prediction(
 ):
     model_entry = _get_model_or_404(model_id, db)
 
-    # ── 1. Fast Path (Fixed Syntax Closing Error) ─────────────────────────────
-    if model_entry.metadata_path:
+    # ── 1. Fast Path ──────────────────────────────────────────────────────────
+    # FIX: was open(model_entry.metadata_path) — read from metadata_json column
+    if model_entry.metadata_json:
         try:
-            with open(model_entry.metadata_path) as f:
-                meta = json.load(f)
+            meta = json.loads(model_entry.metadata_json)
             fi = meta.get("feature_importance") or meta.get("shap_global")
             if fi:
                 input_df   = pd.DataFrame([request.features])
-                pipeline   = load_model(model_entry.model_path)
+                pipeline   = load_model(model_entry.id)  # FIX: was model_entry.model_path
                 prediction = pipeline.predict(input_df)[0]
                 return {
                     "model_id":          model_id,
                     "prediction":        _native(prediction),
                     "global_importance": fi,
-                    "local_explanation": [], # Fast path fallback
+                    "local_explanation": [],
                     "base_value":        meta.get("shap_base"),
                     "source":            "precomputed",
                 }
-        except Exception as meta_err:
-            # Fall through to slow path if metadata reading fails
-            pass
+        except Exception:
+            pass  # fall through to slow path
 
     # ── 2. Slow Path (Compute SHAP in Real-Time) ──────────────────────────────
     try:
-        pipeline = load_model(model_entry.model_path)
+        pipeline = load_model(model_entry.id)  # FIX: was model_entry.model_path
         input_df = pd.DataFrame([request.features])
 
-        # ── Fix: Background dataset scaling fallback ──────────────────────────
-        # Instead of feeding input_df to background_df, we construct a tiny baseline distribution.
-        # Ideally, substitute this with a training dataframe sample asset (e.g., training_df.sample(100))
-        # As a safe placeholder fallback to prevent a 0-variance matrix crash:
         background_df = input_df.copy()
         if len(background_df) == 1:
-            # Duplicate the row with minimal random jitter to prevent matrix variance errors
             jittered_row = background_df.copy()
             for col in jittered_row.select_dtypes(include=['number']).columns:
                 jittered_row[col] = jittered_row[col] * 1.01
@@ -257,14 +252,13 @@ def explain_prediction(
             explain_df=input_df,
         )
 
-        # ── Fix: Surface deep SHAP inner exceptions explicitly ────────────────
         if "error" in result:
             raise HTTPException(
                 status_code=500,
                 detail={
                     "message": "SHAP runtime evaluation failed.",
-                    "error": result.get("error"),
-                    "traceback": result.get("traceback")
+                    "error":     result.get("error"),
+                    "traceback": result.get("traceback"),
                 }
             )
 
