@@ -1,6 +1,6 @@
 'use client'
 
-import { LayoutDashboard, Database, Brain, Zap, BarChart3, LogOut, Sparkles } from 'lucide-react'
+import { LayoutDashboard, Database, Brain, Zap, BarChart3, LogOut, Sparkles, BookOpen } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { clearToken } from '@/lib/api'
 
@@ -19,6 +19,7 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
     { id: 'deployments', label: 'Deployments',    icon: Zap },
     { id: 'monitoring',  label: 'Monitoring',     icon: BarChart3 },
     { id: 'copilot',     label: 'AI Copilot',     icon: Sparkles },
+    { id: 'how-to-use',  label: 'How to Use',     icon: BookOpen },
   ]
 
   const handleLogout = () => {

@@ -9,6 +9,7 @@ import DeploymentsView from '@/components/deployments-view'
 import MonitoringView from '@/components/monitoring-view'
 import DatasetsView from '@/components/datasets-view'
 import CopilotPage from '@/app/copilot/page'
+import HowToUseView from '@/components/how-to-use-view'
 import { auth, getToken, clearToken } from '@/lib/api'
 
 export default function Home() {
@@ -70,6 +71,7 @@ export default function Home() {
       case 'deployments': return <DeploymentsView />
       case 'monitoring':  return <MonitoringView />
       case 'copilot':     return <CopilotPage />
+      case 'how-to-use':  return <HowToUseView onNavigate={setCurrentView} />
       default:            return <Dashboard />
     }
   }
