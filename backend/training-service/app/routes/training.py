@@ -212,7 +212,19 @@ def start_training(request: TrainingRequest, db: Session = Depends(get_db)):
 
 @router.get("/models")
 def list_models(db: Session = Depends(get_db)):
-    return db.query(ModelRegistry).all()
+    models = db.query(ModelRegistry).all()
+    return [
+        {
+            "id":              m.id,
+            "training_job_id": m.training_job_id,
+            "model_name":      m.model_name,
+            "model_version":   m.model_version,
+            "stage":           m.stage,
+            "accuracy":        m.accuracy,
+            "created_at":      m.created_at,
+        }
+        for m in models
+    ]
 
 
 @router.get("/training/{job_id}")
