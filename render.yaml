@@ -88,6 +88,7 @@ services:
     healthCheckPath: /health
 
   # ── Monitoring Service ─────────────────────────────────────────────────────────
+    # ── Monitoring Service ─────────────────────────────────────────────────────────
   - type: web
     name: mlops-monitoring-service
     runtime: docker
@@ -97,12 +98,31 @@ services:
     envVars:
       - key: PYTHONPATH
         value: /app
+
       - key: DATABASE_URL
         fromDatabase:
           name: mlops-postgres
           property: connectionString
-    healthCheckPath: /health
 
+      - key: DATASET_SERVICE_URL
+        value: https://mlops-dataset-service.onrender.com
+
+      - key: TRAINING_SERVICE_URL
+        value: https://mlops-training-service.onrender.com
+
+      - key: DEPLOYMENT_SERVICE_URL
+        value: https://mlops-deployment-service.onrender.com
+
+      - key: MONITORING_SERVICE_URL
+        value: https://mlops-monitoring-service.onrender.com
+
+      - key: MLFLOW_URL
+        value: https://mlops-mlflow-cxbz.onrender.com
+
+      - key: AI_SERVICE_URL
+        value: https://mlops-ai-service.onrender.com
+
+    healthCheckPath: /health
   # ── AI Service (Groq) ──────────────────────────────────────────────────────────
   - type: web
     name: mlops-ai-service
