@@ -138,14 +138,14 @@ export default function HowToUseView({ onNavigate }: HowToUseViewProps) {
             <BookOpen className="w-7 h-7 text-primary" />
             <h1 className="text-3xl font-bold text-foreground">How to Use</h1>
           </div>
-          <p className="text-muted-foreground mt-1 max-w-2xl">
+          <p className="text-muted-foreground mt-1">
             Step-by-step guide to upload data, train a model, deploy it, and monitor predictions.
             No prior MLOps experience required.
           </p>
         </div>
       </div>
 
-      <div className="p-8 max-w-4xl">
+      <div className="p-8">
         {/* Workflow strip */}
         <div id="overview" className="scroll-mt-24 mb-10">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
