@@ -1,0 +1,40 @@
+name: Keep Services Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # every 10 minutes
+  workflow_dispatch:           # allow manual trigger from GitHub Actions UI
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping all services
+        run: |
+          declare -A SERVICES=(
+            ["api-gateway"]="https://mlops-api-gateway.onrender.com/health"
+            ["dataset-service"]="https://mlops-dataset-service.onrender.com/health"
+            ["training-service"]="https://mlops-training-service.onrender.com/health"
+            ["deployment-service"]="https://mlops-deployment-service.onrender.com/health"
+            ["monitoring-service"]="https://mlops-monitoring-service.onrender.com/health"
+            ["ai-service"]="https://mlops-ai-service.onrender.com/health"
+            ["frontend"]="https://mlops-frontend.onrender.com"
+          )
+
+          FAILED=0
+          for NAME in "${!SERVICES[@]}"; do
+            URL="${SERVICES[$NAME]}"
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL")
+            if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+              echo "✓ $NAME — $STATUS"
+            else
+              echo "✗ $NAME — $STATUS (url: $URL)"
+              FAILED=$((FAILED + 1))
+            fi
+          done
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo ""
+            echo "$FAILED service(s) did not respond — they may be deploying or misconfigured."
+            exit 1
+          fi
