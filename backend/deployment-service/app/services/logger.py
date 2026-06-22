@@ -2,7 +2,10 @@ import os
 import requests
 
 
-MONITORING_URL = os.environ.get("MONITORING_URL", "http://monitoring-service:8000")
+MONITORING_URL = os.environ.get(
+    "MONITORING_SERVICE_URL",
+    "http://monitoring-service:8000"
+)
 
 
 def log_prediction(
@@ -13,7 +16,7 @@ def log_prediction(
     status="success"
 ):
     try:
-        requests.post(
+        response = requests.post(
             f"{MONITORING_URL}/log",
             json={
                 "model_id": model_id,
@@ -22,7 +25,17 @@ def log_prediction(
                 "latency_ms": latency_ms,
                 "status": status
             },
-            timeout=2
+            timeout=30
         )
+
+        print(
+            "Prediction log:",
+            response.status_code,
+            response.text
+        )
+
     except Exception as e:
-        print("Logging failed:", e)
+        print(
+            "Logging failed:",
+            repr(e)
+        )
