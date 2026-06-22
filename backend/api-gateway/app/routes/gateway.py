@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 from fastapi import APIRouter, Request
@@ -30,6 +31,8 @@ SERVICES = {
     "deployment": os.environ.get("DEPLOYMENT_SERVICE_URL","http://deployment-service:8000"),
     "monitoring": os.environ.get("MONITORING_SERVICE_URL","http://monitoring-service:8000"),
     "copilot":    os.environ.get("AI_SERVICE_URL",        "http://ai-service:8000"),
+    "mlflow":     os.environ.get("MLFLOW_URL",            "https://mlops-mlflow.onrender.com"),
+    "prometheus": os.environ.get("PROMETHEUS_URL",        "https://mlops-prometheus.onrender.com")
 }
 
 # Routes accessible to all authenticated users (non-admin)
@@ -37,16 +40,56 @@ USER_ALLOWED = {
     "datasets":   {"GET", "POST", "DELETE"},       # upload, list, delete own datasets
     "deployment": {"GET", "POST"},                  # list deployments, predict, explain
     "copilot":    {"GET", "POST"},                  # chat, explain, compare — all users
+    "prometheus": {"GET", "POST"}                   # metrics, alerts — all users
+}
+
+
+# Routes accessible to all authenticated users (non-admin)
+USER_ALLOWED = {
+    "datasets":   {"GET", "POST", "DELETE"},       # upload, list, delete own datasets
+    "deployment": {"GET", "POST"},                  # list deployments, predict, explain
+    "copilot":    {"GET", "POST"},                  # chat, explain, compare — all users
+    "mlflow":     {"GET", "POST"},                   # experiments, runs — all users
+    "prometheus": {"GET", "POST"}                   # metrics, alerts — all users
 }
 
 # Admin-only services
 ADMIN_ONLY = {"training", "monitoring"}
 
 
+
+import httpx
+
+@router.get("/warmup")
+async def warmup():
+    urls = list(SERVICES.values())
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        tasks = [
+            client.get(f"{url}/health")
+            for url in urls
+        ]
+
+        responses = await asyncio.gather(
+            *tasks,
+            return_exceptions=True
+        )
+
+    return {
+        url: (
+            r.status_code
+            if not isinstance(r, Exception)
+            else "failed"
+        )
+        for url, r in zip(urls, responses)
+    }
+
+
 @router.api_route(
     "/api/{service}/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE"]
 )
+
 async def gateway_proxy(service: str, path: str, request: Request):
 
     if service not in SERVICES:
