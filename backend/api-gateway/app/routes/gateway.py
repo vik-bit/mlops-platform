@@ -64,7 +64,7 @@ import httpx
 async def warmup():
     urls = list(SERVICES.values())
 
-    async with httpx.AsyncClient(timeout=20) as client:
+    async with httpx.AsyncClient(timeout=120) as client:
         tasks = [
             client.get(f"{url}/health")
             for url in urls
@@ -79,11 +79,10 @@ async def warmup():
         url: (
             r.status_code
             if not isinstance(r, Exception)
-            else "failed"
+            else str(r)
         )
         for url, r in zip(urls, responses)
     }
-
 
 @router.api_route(
     "/api/{service}/{path:path}",
