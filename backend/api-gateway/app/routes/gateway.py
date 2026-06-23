@@ -60,7 +60,10 @@ ADMIN_ONLY = {"training", "monitoring"}
 
 import httpx
 
-@router.get("/warmup")
+@router.api_route(
+    "/warmup",
+    methods=["GET", "HEAD"]
+)
 async def warmup():
     urls = list(SERVICES.values())
 
