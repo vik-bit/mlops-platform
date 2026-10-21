@@ -1,2 +1,40 @@
+# Secrets
 .env
 .env.*
+!.env.example
+**/.env
+!**/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+.pnpm-store/
+.next/
+dist/
+build/
+
+# Runtime artifacts
+saved_models/
+*.pkl
+*.joblib
+backend.zip
+*.zip
+debug_model.py
+frontend/New folder/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
