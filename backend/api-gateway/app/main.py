@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
@@ -11,7 +13,7 @@ from app.middleware.auth import AuthMiddleware
 from shared.database import SessionLocal
 from shared.models.user import User
 
-from app.utils.password import hash_password
+from app.utils.password import hash_password, verify_password
 from fastapi.middleware.cors import CORSMiddleware
 from shared.database import Base, engine
 
@@ -26,15 +28,24 @@ async def lifespan(app: FastAPI):
 
     try:
 
+        # No default password: the old built-in one was published in the README, so anyone
+        # could sign in as admin on the public demo. The admin account now exists only when
+        # ADMIN_PASSWORD is set, and setting a new value resets an existing account's password.
+        admin_password = os.environ.get("ADMIN_PASSWORD")
+
         admin = db.query(User).filter(
             User.username == "admin"
         ).first()
 
-        if not admin:
+        if not admin_password:
+
+            print("ADMIN_PASSWORD is not set; no admin account was created or changed")
+
+        elif not admin:
 
             admin = User(
                 username="admin",
-                password_hash=hash_password("admin123"),
+                password_hash=hash_password(admin_password),
                 role="admin"
             )
 
@@ -43,6 +54,14 @@ async def lifespan(app: FastAPI):
             db.commit()
 
             print("Admin user created")
+
+        elif not verify_password(admin_password, admin.password_hash):
+
+            admin.password_hash = hash_password(admin_password)
+
+            db.commit()
+
+            print("Admin password updated from ADMIN_PASSWORD")
 
     finally:
         db.close()
