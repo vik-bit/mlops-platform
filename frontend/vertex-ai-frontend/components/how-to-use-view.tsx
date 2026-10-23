@@ -209,8 +209,8 @@ export default function HowToUseView({ onNavigate }: HowToUseViewProps) {
               ]}
             />
             <Warning>
-              Default credentials on first boot: username <code className="font-mono bg-white/60 px-1 rounded">admin</code>, password{' '}
-              <code className="font-mono bg-white/60 px-1 rounded">admin123</code>. Change this before any production use.
+              There is no default password. The <code className="font-mono bg-white/60 px-1 rounded">admin</code> account
+              uses the <code className="font-mono bg-white/60 px-1 rounded">ADMIN_PASSWORD</code> set on the API gateway.
             </Warning>
           </Section>
 

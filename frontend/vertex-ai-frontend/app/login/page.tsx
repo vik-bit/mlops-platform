@@ -16,7 +16,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Brain, User, Lock, AlertCircle, Loader2, Eye, EyeOff, Zap } from 'lucide-react'
+import { Brain, User, Lock, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react'
 import { auth, setToken } from '@/lib/api';
 
 
@@ -80,11 +80,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  function fillDemo() {
-    setForm({ username: 'admin', password: 'admin123' })
-    setErrors({})
   }
 
   return (
@@ -223,26 +218,6 @@ export default function LoginPage() {
           </form>
 
           {/* Divider */}
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-white/[0.06]" />
-            <span className="text-[10px] text-zinc-700 uppercase tracking-widest">or</span>
-            <div className="flex-1 h-px bg-white/[0.06]" />
-          </div>
-
-          {/* Demo fill button */}
-          <button
-            type="button"
-            onClick={fillDemo}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2
-              border border-white/[0.08] hover:border-white/[0.14] hover:bg-white/[0.03]
-              text-zinc-500 hover:text-zinc-300 text-sm font-medium
-              py-2.5 px-4 rounded-lg transition-all disabled:opacity-50"
-          >
-            <Zap className="w-3.5 h-3.5" />
-            Fill demo credentials
-          </button>
-
         </div>
 
         {/* Gateway URL — visible hint for developers */}

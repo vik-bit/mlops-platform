@@ -31,11 +31,7 @@ pnpm dev
 
 Open `http://localhost:3000`.
 
-Default login (seeded on first gateway boot):
-
-| Username | Password |
-|----------|----------|
-| `admin`  | `admin123` |
+Sign in as `admin` with the `ADMIN_PASSWORD` set on the API gateway. There is no default password.
 
 ---
 

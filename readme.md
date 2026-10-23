@@ -106,6 +106,8 @@ Create a `.env` file in the project root:
 
 ```env
 GROQ_API_KEY=gsk_your_key_here
+JWT_SECRET_KEY=<long random value>
+ADMIN_PASSWORD=<choose a password>
 ```
 
 The AI service reads this key at startup. See `backend/ai-service/.env.example` for additional LLM settings.
@@ -118,13 +120,14 @@ docker compose up --build
 
 Wait until all containers are healthy. The API Gateway is available at `http://localhost:8000`.
 
-On first boot, the gateway seeds a default admin account:
+The gateway creates an `admin` account from two settings in `.env` (see `.env.example`):
 
-| Username | Password |
-|----------|----------|
-| `admin`  | `admin123` |
+| Setting | What it does |
+|---------|--------------|
+| `ADMIN_PASSWORD` | Password for the `admin` account. If unset, no admin account is created. Changing it resets the password on the next start. |
+| `JWT_SECRET_KEY` | Key that signs login tokens. Use a long random value and keep it secret. |
 
-Change this password before any production use.
+There is no default password.
 
 ### 3. Start the frontend
 
@@ -144,7 +147,7 @@ NEXT_PUBLIC_POLLING_INTERVAL=5000
 pnpm dev
 ```
 
-Open `http://localhost:3000` and sign in with the admin credentials.
+Open `http://localhost:3000` and sign in as `admin` with your `ADMIN_PASSWORD`.
 
 ### 4. Verify the stack
 
