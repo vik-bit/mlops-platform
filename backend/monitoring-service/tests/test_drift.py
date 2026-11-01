@@ -140,3 +140,15 @@ def test_three_moderately_drifted_features_trigger_retraining(rng):
     assert result["overall_drift"] == "moderate"
     assert result["needs_retraining"] is True
 
+
+def test_missing_numeric_values_are_ignored(rng):
+    # get_drift() appends the raw value when float() fails, so a request that
+    # omitted a numeric field (None) reaches compute_drift as None.
+    baseline = {"age": numeric_baseline(rng.normal(40, 10, 5000))}
+    values = rng.normal(40, 10, 500).tolist() + [None] * 20 + [float("nan")] * 5
+    result = compute_drift(baseline, {"age": values})
+    feat = result["features"]["age"]
+    assert feat["drift_level"] == "none"
+    assert feat["samples"] == 500
+    assert feat["missing"] == 25
+    assert math.isfinite(feat["current_mean"])

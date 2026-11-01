@@ -133,6 +133,16 @@ def compute_drift(
 
     for feature, base_stats in baseline.items():
         current_values = current_data.get(feature, [])
+        feat_type = base_stats.get("type", "numeric")
+
+        # Requests that omitted a numeric field log it as None (or NaN); numpy cannot
+        # bin or sort those, so drop them and score only the values that are present.
+        missing = 0
+        if feat_type == "numeric":
+            present = [v for v in current_values
+                       if isinstance(v, (int, float)) and np.isfinite(v)]
+            missing = len(current_values) - len(present)
+            current_values = present
 
         if len(current_values) < min_samples:
             results[feature] = {
@@ -141,8 +151,6 @@ def compute_drift(
                 "required": min_samples,
             }
             continue
-
-        feat_type = base_stats.get("type", "numeric")
 
         if feat_type == "numeric":
             hist_counts = base_stats.get("hist_counts")
@@ -161,6 +169,7 @@ def compute_drift(
                 "drift_level":   _drift_level(psi),
                 "ks_statistic":  ks,
                 "samples":       len(current_values),
+                "missing":       missing,
                 "current_mean":  round(float(np.mean(current_values)), 4),
                 "current_std":   round(float(np.std(current_values)), 4),
                 "baseline_mean": base_stats.get("mean"),
