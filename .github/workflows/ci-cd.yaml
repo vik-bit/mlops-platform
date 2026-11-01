@@ -85,6 +85,35 @@ jobs:
           find backend -name "*.py" -not -path "*/node_modules/*" -print0 \
             | xargs -0 -n1 python -m py_compile
 
+  unit-tests:
+    name: Test ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - dataset-service
+          - monitoring-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/${{ matrix.service }}/requirements.txt
+
+      # Same requirements file the service image installs, plus pytest.
+      - name: Install dependencies
+        run: pip install -r backend/${{ matrix.service }}/requirements.txt pytest
+
+      - name: Run tests
+        working-directory: backend/${{ matrix.service }}
+        run: python -m pytest -q tests
+
   # ── Deploy ───────────────────────────────────────────────────────────────────
   # Runs ONLY if every build/test job above succeeded, and ONLY on a real push
   # to main (not on PRs — you don't want every PR branch deploying to prod).
@@ -93,7 +122,7 @@ jobs:
   # silently inside Render's own dashboard.
   deploy:
     name: Deploy to Render
-    needs: [build-backend-services, build-frontend, python-syntax-check]
+    needs: [build-backend-services, build-frontend, python-syntax-check, unit-tests]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
