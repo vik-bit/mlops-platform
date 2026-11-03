@@ -3,7 +3,7 @@ uvicorn
 sqlalchemy
 psycopg2-binary
 mlflow
-scikit-learn
+scikit-learn>=1.9  # TargetEncoder(cv=...); training and deployment must match to unpickle models
 pandas
 numpy
 joblib

@@ -4,10 +4,8 @@ import json
 import numpy as np
 import pandas as pd
 
-from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split, cross_validate, StratifiedKFold, KFold
 from sklearn.metrics import (
     accuracy_score, r2_score,
@@ -36,6 +34,8 @@ try:
 except ImportError:
     LIGHTGBM_AVAILABLE = False
 from sklearn.compose import TransformedTargetRegressor
+
+from shared.ml.features import build_preprocessor, validate_transforms
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 
@@ -107,27 +107,6 @@ def build_regressor(model_type: str, params: Dict[str, Any]):
     )
 
 
-# ── Preprocessor ──────────────────────────────────────────────────────────────
-
-def build_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
-    numeric_features     = X.select_dtypes(include=["int64","float64","int32","float32"]).columns.tolist()
-    categorical_features = X.select_dtypes(include=["object","category","bool"]).columns.tolist()
-
-    numeric_pipeline = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler",  StandardScaler()),
-    ])
-    categorical_pipeline = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-    ])
-
-    return ColumnTransformer(transformers=[
-        ("num", numeric_pipeline,     numeric_features),
-        ("cat", categorical_pipeline, categorical_features),
-    ])
-
-
 # ── Feature importance ────────────────────────────────────────────────────────
 
 def extract_feature_importance(pipeline: Pipeline, feature_names: list) -> Optional[Dict[str, float]]:
@@ -184,6 +163,7 @@ class TrainingResult:
         self.cv_mean:            Optional[float] = None
         self.cv_std:             Optional[float] = None
         self.feature_importance: Optional[Dict]  = None
+        self.feature_transforms: list            = []    # validated, with defaults filled in
 
 
 # ── Main training function ────────────────────────────────────────────────────
@@ -195,9 +175,12 @@ def train_model(
     task_type: str = "classification",
     hyperparameters: Optional[Dict[str, Any]] = None,
     cv_folds: int = 5,
+    feature_transforms: Optional[list] = None,
 ) -> TrainingResult:
     """
     Train with preprocessing pipeline, cross-validation, and full metrics.
+    feature_transforms: optional per-column transforms (see shared/ml/features.py). They are part of
+    the pipeline, so cross-validation refits them on every fold and prediction replays them.
     Returns a TrainingResult with all metric fields populated.
     """
     result = TrainingResult()
@@ -215,7 +198,8 @@ def train_model(
     params = {**DEFAULTS.get(model_type, {}), **(hyperparameters or {})}
 
     # ── Build pipeline ───────────────────────────────────────────────────────
-    preprocessor = build_preprocessor(X)
+    result.feature_transforms = validate_transforms(X, feature_transforms)
+    preprocessor = build_preprocessor(X, result.feature_transforms)
 
     if task_type == "regression":
         estimator = build_regressor(model_type, dict(params))

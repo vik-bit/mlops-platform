@@ -95,6 +95,7 @@ jobs:
           - api-gateway
           - dataset-service
           - monitoring-service
+          - training-service
     steps:
       - name: Checkout
         uses: actions/checkout@v4

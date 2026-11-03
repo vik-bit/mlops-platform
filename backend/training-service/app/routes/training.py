@@ -42,6 +42,7 @@ def background_training(
     model_type: str,
     task_type: str = "classification",
     hyperparameters: dict | None = None,
+    feature_transforms: list | None = None,
 ):
     db = SessionLocal()
     try:
@@ -78,6 +79,7 @@ def background_training(
             model_type=model_type,
             task_type=task_type,
             hyperparameters=hyperparameters,
+            feature_transforms=feature_transforms,
         )
 
         # Serialize model to bytes — no local disk write
@@ -118,6 +120,7 @@ def background_training(
                 "model_type":            model_type,
                 "task_type":             task_type,
                 "hyperparameters":       hyperparameters,
+                "feature_transforms":    result.feature_transforms,
                 "training_distribution": training_distribution,
                 "training_rows":         len(df),
             }
@@ -204,7 +207,8 @@ def start_training(request: TrainingRequest, db: Session = Depends(get_db)):
     Thread(
         target=background_training,
         args=(assigned_job_id, request.dataset_id, request.target_column,
-              request.model_type, request.task_type, request.hyperparameters),
+              request.model_type, request.task_type, request.hyperparameters,
+              [t.model_dump(exclude_none=True) for t in request.feature_transforms or []]),
     ).start()
 
     return _job_to_dict(job)

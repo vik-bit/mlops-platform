@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from shared.database import SessionLocal
 from shared.models.deployment import Deployment
+from shared.ml.features import BRANCH_INPUT_KIND
 from shared.models.model_registry import ModelRegistry
 from shared.schemas.deployment import (
     DeployResponse,
@@ -180,8 +181,11 @@ def get_prediction_schema(model_id: int, db: Session = Depends(get_db)):
         preprocessor = pipeline.named_steps["preprocessor"]
         schema = {}
         for name, transformer, cols in preprocessor.transformers_:
+            if name == "remainder":
+                continue
             for col in cols:
-                schema[col] = "numeric" if name == "num" else "categorical"
+                # a column can feed several branches (e.g. "num" and "interaction"); keep the first
+                schema.setdefault(col, BRANCH_INPUT_KIND.get(name, "categorical"))
 
         # FIX: was open(model_entry.metadata_path) — file no longer exists,
         # metadata is stored in the metadata_json column instead.

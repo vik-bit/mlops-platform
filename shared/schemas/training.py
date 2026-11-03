@@ -1,6 +1,15 @@
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, Literal
+from typing import Optional, Dict, Any, List, Literal
 from datetime import datetime
+
+
+class FeatureTransform(BaseModel):
+    """One feature-engineering step; see shared/ml/features.py for what each op does."""
+    op:      Literal["log", "bin", "datetime_parts", "interaction", "target_encode"]
+    columns: Optional[List[str]]       = None   # every op except interaction
+    pairs:   Optional[List[List[str]]] = None   # interaction only
+    n_bins:  Optional[int]             = None   # bin only (default 5)
+    parts:   Optional[List[str]]       = None   # datetime_parts only (default: all)
 
 
 class TrainingRequest(BaseModel):
@@ -9,6 +18,7 @@ class TrainingRequest(BaseModel):
     model_type:      str
     task_type:       Literal["classification", "regression"] = "classification"
     hyperparameters: Optional[Dict[str, Any]] = None
+    feature_transforms: Optional[List[FeatureTransform]] = None
 
 
 class TrainingResponse(BaseModel):
