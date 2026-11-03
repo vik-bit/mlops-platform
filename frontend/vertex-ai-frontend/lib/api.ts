@@ -48,12 +48,24 @@ export interface TrainingJob {
 
 export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
+export type FeatureOp = 'log' | 'bin' | 'datetime_parts' | 'interaction' | 'target_encode'
+
+/** One feature-engineering step; see docs/feature-engineering.md. */
+export interface FeatureTransform {
+  op: FeatureOp
+  columns?: string[]    // every op except interaction
+  pairs?: string[][]    // interaction only
+  n_bins?: number       // bin only
+  parts?: string[]      // datetime_parts only
+}
+
 export interface StartTrainingParams {
   dataset_id: number
   target_column: string
   model_type: string
   task_type: 'classification' | 'regression'
   hyperparameters?: Record<string, unknown>
+  feature_transforms?: FeatureTransform[]
 }
 
 export interface ModelVersion {

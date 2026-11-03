@@ -13,7 +13,11 @@ prediction time, and cross-validation refits every step on each training fold.
 
 ## Transforms you can add
 
-`POST /train` accepts an optional `feature_transforms` list. Each op may appear once, and can list
+In the dashboard, open **Training Jobs → New Training Job → Feature Engineering**. It lists the
+dataset's columns from its profile and offers only those that suit each op: numeric columns for
+`log`, `bin` and `interaction` (no columns with negatives for `log`), text columns for
+`datetime_parts` and `target_encode`, and never the target. Through the API, `POST /train` accepts
+the same thing as an optional `feature_transforms` list. Each op may appear once, and can list
 several columns:
 
 ```json

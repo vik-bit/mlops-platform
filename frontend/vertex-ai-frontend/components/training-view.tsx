@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTrainingJobs, useDatasets } from '@/lib/hooks'
-import { training, TrainingJob, StartTrainingParams } from '@/lib/api'
+import { training, TrainingJob, StartTrainingParams, FeatureTransform } from '@/lib/api'
+import FeatureTransformsEditor, { completeTransforms } from '@/components/feature-transforms'
 
 // ─── Model catalogue ──────────────────────────────────────────────────────────
 
@@ -130,6 +131,8 @@ export default function TrainingView() {
     task_type: 'classification' | 'regression'
   }>({ dataset_id: '', model_type: 'random_forest', target_column: '', task_type: 'classification' })
   const [hyperparams, setHyperparams] = useState<Record<string, string>>({})
+  const [showFeatures, setShowFeatures] = useState(false)
+  const [transforms, setTransforms]     = useState<FeatureTransform[]>([])
   const [submitting, setSubmitting]   = useState(false)
   const [formError, setFormError]     = useState<string | null>(null)
   const [deleting, setDeleting]       = useState<number | null>(null)
@@ -166,9 +169,11 @@ export default function TrainingView() {
         model_type:      form.model_type,
         task_type:       form.task_type,
         hyperparameters: typedParams,
+        feature_transforms: completeTransforms(transforms),
       } as StartTrainingParams)
       setShowModal(false)
       setForm({ dataset_id: '', model_type: 'random_forest', target_column: '', task_type: 'classification' })
+      setTransforms([])
       refresh()
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : 'Failed to start job')
@@ -324,6 +329,27 @@ export default function TrainingView() {
                   )}
                 </div>
               )}
+
+              {/* Feature engineering */}
+              <div>
+                <button onClick={() => setShowFeatures(s => !s)} className="flex items-center gap-2 text-sm font-medium text-foreground mb-3 hover:text-primary transition">
+                  {showFeatures ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  Feature Engineering
+                  <span className="text-xs text-muted-foreground font-normal">
+                    (optional{completeTransforms(transforms).length ? ` — ${completeTransforms(transforms).length} added` : ''})
+                  </span>
+                </button>
+                {showFeatures && (
+                  <div className="bg-secondary/30 rounded-xl p-4">
+                    <p className="text-[11px] text-muted-foreground mb-3">
+                      Added on top of the defaults (numeric: impute + scale; text: impute + one-hot). Saved with the
+                      model, so predictions apply the same steps.
+                    </p>
+                    <FeatureTransformsEditor datasetId={form.dataset_id} targetColumn={form.target_column}
+                      value={transforms} onChange={setTransforms} />
+                  </div>
+                )}
+              </div>
 
               {formError && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600">
