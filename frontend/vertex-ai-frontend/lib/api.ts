@@ -23,14 +23,27 @@ export interface Dataset {
   created_at: string
 }
 
+// Mirrors _job_to_dict in backend/training-service/app/routes/training.py
 export interface TrainingJob {
   id: number
   dataset_id: number
   model_type: string
+  task_type: 'classification' | 'regression' | null
+  target_column: string | null
   status: string
   accuracy: string | null
+  precision: number | null
+  recall: number | null
+  f1_score: number | null
+  r2_score: number | null
+  mae: number | null
+  rmse: number | null
+  cv_mean: number | null
+  cv_std: number | null
+  hyperparameters: Record<string, unknown>
   mlflow_run_id: string | null
-  created_at: string
+  error_message: string | null
+  created_at: string | null
 }
 
 export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
