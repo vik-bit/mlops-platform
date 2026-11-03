@@ -168,6 +168,7 @@ Focus: make the core ML lifecycle work reliably in a containerized environment.
 
 - Dataset upload and profiling
 - Async training with 8 model types and MLflow logging
+- Per-column feature engineering (log, bins, date parts, interactions, leak-free target encoding) inside the saved pipeline ([docs](docs/feature-engineering.md))
 - Model registry and deployment to HTTP endpoints
 - Prediction, batch inference, and SHAP explanations
 - Monitoring: stats, prediction history, drift detection
@@ -181,7 +182,7 @@ Focus: richer analytics, knowledge retrieval, and production-grade infrastructur
 | Area | Planned work |
 |------|-------------|
 | **Visualization** | Interactive training curves, feature charts, deployment dashboards |
-| **Feature engineering** | Built-in transforms, feature store integration, pipeline templates |
+| **Feature engineering** | Feature store integration, pipeline templates (per-column transforms shipped in v1) |
 | **RAG** | Vector database-backed knowledge retrieval for the Copilot |
 | **Scalable infra** | Redis caching layer, full auth/SSO, message queues for async workflows, Kubernetes deployment |
 
@@ -218,6 +219,7 @@ MLOPS_Platform/
 | [docs/deployment.md](docs/deployment.md) | Infrastructure and deployment architecture |
 | [docs/roadmap.md](docs/roadmap.md) | Full implementation roadmap |
 | [docs/observability.md](docs/observability.md) | Monitoring and metrics design |
+| [docs/feature-engineering.md](docs/feature-engineering.md) | Preprocessing, feature transforms, leakage check and a before/after measurement |
 
 ---
 
