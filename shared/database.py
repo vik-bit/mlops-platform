@@ -13,6 +13,13 @@ DATABASE_URL = os.environ.get(
     "postgresql://admin:admin@postgres:5432/mlops_platform",
 )
 
+# Name the driver explicitly. SQLAlchemy 2.1 maps a bare postgresql:// URL to psycopg 3, but the
+# services install psycopg2-binary, so every fresh image failed to connect. Render may also hand
+# out the older postgres:// scheme.
+for _scheme in ("postgresql://", "postgres://"):
+    if DATABASE_URL.startswith(_scheme):
+        DATABASE_URL = "postgresql+psycopg2://" + DATABASE_URL[len(_scheme):]
+
 MAX_RETRIES = 10
 RETRY_DELAY = 5
 
