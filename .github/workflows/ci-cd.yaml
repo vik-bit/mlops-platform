@@ -94,6 +94,7 @@ jobs:
         service:
           - api-gateway
           - dataset-service
+          - deployment-service
           - monitoring-service
           - training-service
     steps:
