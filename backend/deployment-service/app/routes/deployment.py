@@ -23,6 +23,7 @@ from shared.schemas.deployment import (
 from app.services.model_loader import load_model
 from app.services.logger import log_prediction
 from app.services.explainer import compute_shap
+from shared.lifecycle.events import record_event
 
 router = APIRouter()
 
@@ -52,6 +53,8 @@ def deploy_model(model_id: int, db: Session = Depends(get_db)):
     db.add(deployment)
     db.commit()
     db.refresh(deployment)
+    record_event(db, "deployed", deployment_id=deployment.id, to_model_id=model.id,
+                 reason="model deployed")
 
     return {"message": "Model deployed successfully", "endpoint": deployment.endpoint}
 
@@ -70,6 +73,8 @@ def undeploy_model(deployment_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Deployment not found")
     db.delete(dep)
     db.commit()
+    record_event(db, "undeployed", deployment_id=deployment_id, from_model_id=dep.model_id,
+                 reason="deployment removed")
     return {"message": "Deployment removed successfully"}
 
 
