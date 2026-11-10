@@ -44,3 +44,18 @@ def log_prediction(
     return {
         "message": "Prediction logged"
     }
+
+class PredictionLogBatch(BaseModel):
+    logs: list[PredictionLogRequest]
+
+
+@router.post("/log/batch")
+def log_predictions_batch(request: PredictionLogBatch, db: Session = Depends(get_db)):
+    """Bulk insert; the deployment service flushes its log queue here every ~0.5 s."""
+    db.bulk_save_objects([
+        PredictionLog(model_id=l.model_id, input_data=l.input_data, prediction=l.prediction,
+                      latency_ms=l.latency_ms, status=l.status)
+        for l in request.logs
+    ])
+    db.commit()
+    return {"message": "Prediction logs stored", "count": len(request.logs)}

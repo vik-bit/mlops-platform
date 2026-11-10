@@ -19,7 +19,10 @@ from prometheus_client import (
 from shared.database import SessionLocal
 from shared.models.monitoring import PredictionLog
 
+from typing import Optional
+
 from app.services.drift import compute_drift
+from app.services.lifecycle import inputs_from_logs, recent_logs, registry_metadata
 
 router = APIRouter()
 
@@ -93,8 +96,9 @@ def get_drift(
                         description="Number of recent predictions to analyse"),
     min_samples: int = Query(default=30,
                              description="Minimum samples per feature to run drift"),
-    metadata_path: str = Query(...,
-                               description="Path to the model _metadata.json file"),
+    metadata_path: Optional[str] = Query(None,
+                               description="Legacy: path to a _metadata.json file. "
+                                           "Omit to use the baseline stored in the model registry."),
     db: Session = Depends(get_db),
 ):
     """
@@ -102,19 +106,23 @@ def get_drift(
 
     Reads the last `window` prediction logs, reconstructs input feature
     distributions from the stored input_data JSON, then compares against
-    the training baseline in `_metadata.json`.
+    the training baseline (model registry metadata, or a legacy _metadata.json).
 
     Returns per-feature PSI + KS scores, overall drift signal,
     list of drifted features, and a retraining recommendation.
     """
-    # Load training baseline from metadata
-    try:
-        with open(metadata_path) as f:
-            meta = json.load(f)
-    except FileNotFoundError:
-        return {"error": f"Metadata not found at {metadata_path}"}
-    except Exception as e:
-        return {"error": f"Could not load metadata: {e}"}
+    if metadata_path:
+        try:
+            with open(metadata_path) as f:
+                meta = json.load(f)
+        except FileNotFoundError:
+            return {"error": f"Metadata not found at {metadata_path}"}
+        except Exception as e:
+            return {"error": f"Could not load metadata: {e}"}
+    else:
+        meta = registry_metadata(db, model_id)
+        if meta is None:
+            return {"error": f"Model {model_id} has no metadata in the registry"}
 
     baseline = meta.get("training_distribution")
     if not baseline:
@@ -123,15 +131,7 @@ def get_drift(
                      "Retrain the model to generate a baseline."
         }
 
-    # Fetch recent prediction logs
-    logs = (
-        db.query(PredictionLog)
-        .filter(PredictionLog.model_id == model_id)
-        .order_by(PredictionLog.created_at.desc())
-        .limit(window)
-        .all()
-    )
-
+    logs = recent_logs(db, model_id, window)
     if not logs:
         return {
             "model_id":      model_id,
@@ -140,31 +140,7 @@ def get_drift(
             "overall_drift": "unknown",
         }
 
-    # Parse input_data from each log into per-feature lists
-    current_data: dict = {}
-    parse_errors = 0
-
-    for log in logs:
-        try:
-            # input_data is stored as a string repr of a dict
-            raw = log.input_data
-            if raw.startswith("{"):
-                data = json.loads(raw)
-            else:
-                data = ast.literal_eval(raw)
-
-            for feature, value in data.items():
-                if feature not in current_data:
-                    current_data[feature] = []
-                try:
-                    current_data[feature].append(float(value))
-                except (TypeError, ValueError):
-                    current_data[feature].append(value)
-
-        except Exception:
-            parse_errors += 1
-            continue
-
+    current_data, parse_errors = inputs_from_logs(logs)
     if not current_data:
         return {
             "model_id": model_id,
