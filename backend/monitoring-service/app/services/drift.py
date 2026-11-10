@@ -93,11 +93,10 @@ def _ks_test(baseline_stats: dict, current_values: list) -> Optional[float]:
         std  = baseline_stats["std"]
         if std == 0:
             return None
-        ks_stat, _ = scipy_stats.kstest(
-            current_values,
-            "norm",
-            args=(mean, std),
-        )
+        # Standardise and test against N(0, 1): the same statistic as kstest(x, "norm", args=(mean, std)),
+        # which raises TypeError inside SciPy 1.18.1 (and was swallowed below, so KS silently read None).
+        z = (np.asarray(current_values, dtype=float) - mean) / std
+        ks_stat, _ = scipy_stats.kstest(z, "norm")
         return round(float(ks_stat), 6)
     except Exception:
         return None
