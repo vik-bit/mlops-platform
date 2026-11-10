@@ -97,9 +97,13 @@ def _native(val):
 
 
 def _score(model_id: int, features: Dict[str, Any], return_proba: bool) -> Tuple[Any, Optional[dict], float]:
-    """Predict one row; returns (prediction, probabilities, inference latency in ms)."""
-    t0 = time.perf_counter()
+    """Predict one row; returns (prediction, probabilities, inference latency in ms).
+
+    The (cached) model load happens before the clock starts: a pod's first request for a model
+    would otherwise report the unpickle time as latency and could trip the p95 rule.
+    """
     pipeline = load_model(model_id)
+    t0 = time.perf_counter()
     df = pd.DataFrame([features])
     pred = _native(pipeline.predict(df)[0])
     proba = None
