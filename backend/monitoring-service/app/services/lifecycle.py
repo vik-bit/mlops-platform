@@ -33,6 +33,9 @@ from app.services.drift import compute_drift
 
 TRAINING_SERVICE_URL = os.environ.get("TRAINING_SERVICE_URL", "http://training-service:8000")
 CHECK_INTERVAL_S = float(os.environ.get("RETRAIN_CHECK_INTERVAL_S", "60"))
+# A retrain still "queued"/"running" after this long is treated as lost (e.g. its pod restarted),
+# so it no longer blocks new retrains.
+RETRAIN_MAX_RUNTIME_S = float(os.environ.get("RETRAIN_MAX_RUNTIME_S", "1800"))
 
 
 # ── Helpers shared with the /drift route ─────────────────────────────────────
@@ -91,13 +94,13 @@ def _last_retrain(db, deployment_id: int) -> Tuple[Optional[float], bool]:
           .order_by(LifecycleEvent.id.desc()).first())
     if not ev:
         return None, False
+    queued_at = ev.created_at.replace(tzinfo=timezone.utc).timestamp()  # created_at is naive UTC
     in_flight = False
     job_id = (json.loads(ev.details_json or "{}")).get("job_id")
-    if job_id:
+    if job_id and time.time() - queued_at < RETRAIN_MAX_RUNTIME_S:
         job = db.query(TrainingJob.status).filter(TrainingJob.id == job_id).first()
         in_flight = bool(job and job[0] in ("queued", "running"))
-    # created_at is naive UTC
-    return ev.created_at.replace(tzinfo=timezone.utc).timestamp(), in_flight
+    return queued_at, in_flight
 
 
 def _summary(drift: Dict[str, Any]) -> Dict[str, Any]:
