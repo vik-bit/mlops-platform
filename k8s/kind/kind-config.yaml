@@ -1,0 +1,14 @@
+# kind create cluster --name mlops --config k8s/kind/kind-config.yaml
+# Host ports are 18xxx so they do not collide with docker-compose (8000-8005, 3000, 9090).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - {containerPort: 30800, hostPort: 18000}   # api-gateway
+      - {containerPort: 30801, hostPort: 18001}   # dataset-service
+      - {containerPort: 30802, hostPort: 18002}   # training-service
+      - {containerPort: 30803, hostPort: 18003}   # deployment-service (load tests)
+      - {containerPort: 30804, hostPort: 18004}   # monitoring-service
+      - {containerPort: 30300, hostPort: 13000}   # frontend
+      - {containerPort: 30909, hostPort: 19090}   # prometheus

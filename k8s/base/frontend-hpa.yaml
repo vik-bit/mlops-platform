@@ -1,0 +1,60 @@
+# Next.js frontend, and the HPA on the deployment service (the only service on the hot path).
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+spec:
+  selector: {app: frontend}
+  ports: [{name: http, port: 3000, targetPort: 3000}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: frontend}
+  template:
+    metadata:
+      labels: {app: frontend}
+    spec:
+      containers:
+        - name: frontend
+          image: mlops/frontend:dev
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 3000}]
+          livenessProbe:
+            httpGet: {path: /login, port: 3000}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: {path: /login, port: 3000}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 384Mi}
+---
+# Scale the deployment service on CPU. Each pod runs one uvicorn worker and sklearn inference is
+# CPU-bound, so CPU utilisation tracks load. The scale-up policy is deliberately quick and the
+# scale-down window short so a few-minute load test shows both directions.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: deployment-service
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: deployment-service}
+  minReplicas: 1
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 60}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies: [{type: Pods, value: 2, periodSeconds: 15}]
+    scaleDown:
+      stabilizationWindowSeconds: 60
+      policies: [{type: Pods, value: 1, periodSeconds: 30}]

@@ -98,6 +98,8 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
         "https://mlops-frontend-5smr.onrender.com",
+        # Extra origins, comma-separated (the Kind cluster serves the frontend on :13000).
+        *[o.strip() for o in os.environ.get("CORS_EXTRA_ORIGINS", "").split(",") if o.strip()],
     ],
     allow_credentials=True,
     allow_methods=["*"],

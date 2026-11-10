@@ -1,0 +1,58 @@
+# NodePort services that kind-config.yaml maps to host ports. Kube-proxy spreads NodePort traffic
+# across all ready pods, so a load test against :8003 reaches every HPA replica
+# (kubectl port-forward would pin it to one pod).
+apiVersion: v1
+kind: Service
+metadata: {name: api-gateway-nodeport}
+spec:
+  type: NodePort
+  selector: {app: api-gateway}
+  ports: [{port: 8000, targetPort: 8000, nodePort: 30800}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: frontend-nodeport}
+spec:
+  type: NodePort
+  selector: {app: frontend}
+  ports: [{port: 3000, targetPort: 3000, nodePort: 30300}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: deployment-service-nodeport}
+spec:
+  type: NodePort
+  selector: {app: deployment-service}
+  ports: [{port: 8000, targetPort: 8000, nodePort: 30803}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: training-service-nodeport}
+spec:
+  type: NodePort
+  selector: {app: training-service}
+  ports: [{port: 8000, targetPort: 8000, nodePort: 30802}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: monitoring-service-nodeport}
+spec:
+  type: NodePort
+  selector: {app: monitoring-service}
+  ports: [{port: 8000, targetPort: 8000, nodePort: 30804}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: dataset-service-nodeport}
+spec:
+  type: NodePort
+  selector: {app: dataset-service}
+  ports: [{port: 8000, targetPort: 8000, nodePort: 30801}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: prometheus-nodeport}
+spec:
+  type: NodePort
+  selector: {app: prometheus}
+  ports: [{port: 9090, targetPort: 9090, nodePort: 30909}]
