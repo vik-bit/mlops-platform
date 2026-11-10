@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -56,6 +57,10 @@ USER_ALLOWED = {
 # Admin-only services
 ADMIN_ONLY = {"training", "monitoring"}
 
+# Lifecycle changes on the deployment service (start/finish rollouts, promote, edit policy,
+# write events) are admin-only even though users may POST predictions and feedback.
+ADMIN_ONLY_DEPLOYMENT_PATH = re.compile(r"(^|/)(rollouts|promote|policy|events)(/|$)")
+
 
 
 import httpx
@@ -102,6 +107,10 @@ async def gateway_proxy(service: str, path: str, request: Request):
 
     # Admin-only services
     if service in ADMIN_ONLY and role != "admin":
+        return JSONResponse(status_code=403, content={"detail": "Admin access required"})
+
+    if (service == "deployment" and role != "admin" and request.method != "GET"
+            and ADMIN_ONLY_DEPLOYMENT_PATH.search(path)):
         return JSONResponse(status_code=403, content={"detail": "Admin access required"})
 
     # Non-admin users: check method allowlist
