@@ -1,1 +1,0 @@
-from shared.database.connection import Base
