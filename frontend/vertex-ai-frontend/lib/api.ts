@@ -460,6 +460,92 @@ export const deployments = {
     }),
 }
 
+// ─── Lifecycle: rollouts, events, policy (deployment-service app/routes/lifecycle.py) ─
+
+export type RolloutMode = 'shadow' | 'canary'
+export type RolloutStatus = 'active' | 'promoted' | 'rolled_back' | 'cancelled'
+
+export interface RolloutMetrics {
+  stable_requests: number
+  candidate_requests: number
+  candidate_errors: number
+  candidate_error_rate: number | null
+  stable_error_rate: number | null
+  candidate_p95_ms: number | null
+  stable_p95_ms: number | null
+  prediction_psi: number | null
+}
+
+export interface Rollout {
+  id: number
+  deployment_id: number
+  stable_model_id: number
+  candidate_model_id: number
+  mode: RolloutMode
+  traffic_percent: number
+  status: RolloutStatus
+  thresholds: Record<string, number | boolean> | null
+  last_metrics: RolloutMetrics | null
+  decision_reason: string | null
+  started_at: string | null
+  ended_at: string | null
+}
+
+export interface LifecycleEvent {
+  id: number
+  deployment_id: number | null
+  rollout_id: number | null
+  event_type: string
+  from_model_id: number | null
+  to_model_id: number | null
+  reason: string | null
+  details: Record<string, unknown> | null
+  created_at: string | null
+}
+
+export interface StartRolloutParams {
+  candidate_model_id: number
+  mode: RolloutMode
+  traffic_percent: number
+  thresholds?: Record<string, number | boolean>
+}
+
+export interface LifecyclePolicy {
+  retrain: Record<string, number | boolean | string>
+  gate: Record<string, number | string>
+  rollout: Record<string, number | boolean>
+}
+
+export const lifecycle = {
+  rollouts: (deploymentId: number) =>
+    request<Rollout[]>(`/api/deployment/deployments/${deploymentId}/rollouts`),
+
+  startRollout: (deploymentId: number, params: StartRolloutParams) =>
+    request<Rollout>(`/api/deployment/deployments/${deploymentId}/rollouts`, {
+      method: 'POST',
+      body: JSON.stringify({ ...params, actor: 'ui' }),
+    }),
+
+  finishRollout: (rolloutId: number, action: 'promote' | 'rollback' | 'cancel') =>
+    request<Rollout>(`/api/deployment/rollouts/${rolloutId}/${action}`, { method: 'POST' }),
+
+  events: (deploymentId?: number, limit = 50) =>
+    request<LifecycleEvent[]>(
+      deploymentId === undefined
+        ? `/api/deployment/events?limit=${limit}`
+        : `/api/deployment/deployments/${deploymentId}/events?limit=${limit}`,
+    ),
+
+  policy: (deploymentId: number) =>
+    request<LifecyclePolicy>(`/api/deployment/deployments/${deploymentId}/policy`),
+
+  updatePolicy: (deploymentId: number, policy: Partial<LifecyclePolicy>) =>
+    request<LifecyclePolicy>(`/api/deployment/deployments/${deploymentId}/policy`, {
+      method: 'PUT',
+      body: JSON.stringify(policy),
+    }),
+}
+
 // ─── Monitoring ───────────────────────────────────────────────────────────────
 
 export const monitoring = {

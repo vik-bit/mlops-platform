@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Zap, Trash2, Copy, CheckCircle, AlertCircle, Terminal, UploadCloud, Lightbulb } from 'lucide-react'
+import { Plus, Zap, Trash2, Copy, CheckCircle, AlertCircle, Terminal, UploadCloud, Lightbulb, GitBranch } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useDeployments, useModels } from '@/lib/hooks'
 import { deployments as deploymentsApi, ModelSchema, ShapExplanation } from '@/lib/api'
+import RolloutPanel from '@/components/rollout-panel'
 
 export default function DeploymentsView() {
   const { data, loading, refresh } = useDeployments()
@@ -20,6 +21,7 @@ export default function DeploymentsView() {
 
   // Per-deployment expanded panels
   const [expandedId, setExpandedId]       = useState<number | null>(null)
+  const [rolloutsOpenId, setRolloutsOpenId] = useState<number | null>(null)
   const [schemas, setSchemas]             = useState<Record<number, ModelSchema | null>>({})
   const [loadingSchema, setLoadingSchema] = useState<number | null>(null)
   const [shapResult, setShapResult]       = useState<Record<number, ShapExplanation | null>>({})
@@ -228,6 +230,13 @@ export default function DeploymentsView() {
                         {isExpanded ? 'Hide' : 'Predict / Explain'}
                       </button>
                       <button
+                        onClick={() => setRolloutsOpenId(rolloutsOpenId === dep.id ? null : dep.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-secondary transition text-foreground"
+                      >
+                        <GitBranch className="w-3.5 h-3.5" />
+                        {rolloutsOpenId === dep.id ? 'Hide rollouts' : 'Rollouts & events'}
+                      </button>
+                      <button
                         onClick={() => handleUndeploy(dep.id)}
                         disabled={undeploying === dep.id}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-50 text-muted-foreground hover:text-red-500 transition border border-border ml-auto"
@@ -237,6 +246,11 @@ export default function DeploymentsView() {
                       </button>
                     </div>
                   </div>
+
+                  {rolloutsOpenId === dep.id && (
+                    <RolloutPanel deploymentId={dep.id} stableModelId={dep.model_id}
+                      models={modelList ?? []} onChanged={refresh} />
+                  )}
 
                   {/* Expanded prediction panel */}
                   {isExpanded && (
