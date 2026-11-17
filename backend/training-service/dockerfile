@@ -11,6 +11,8 @@ WORKDIR /app
 COPY ./backend/training-service/requirements.txt .
 
 
+# Slow mirrors time out on the large wheels (xgboost, shap, mlflow) at pip's 15 s default.
+ENV PIP_DEFAULT_TIMEOUT=120 PIP_RETRIES=10
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ./backend/training-service /app
