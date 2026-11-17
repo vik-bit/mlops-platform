@@ -1,0 +1,289 @@
+{
+  "target_rps": 25.0,
+  "canary_percent": 20.0,
+  "deployment_id": 1,
+  "stable_model_id": 1,
+  "thresholds": {
+    "max_error_rate": 0.05,
+    "max_p95_latency_ms": 500.0,
+    "max_p95_ratio": 3.0,
+    "max_prediction_psi": 0.25,
+    "min_requests": 20,
+    "auto_promote": false,
+    "promote_after_requests": 300,
+    "canary_percent_after_shadow": 10.0
+  },
+  "results": [
+    {
+      "scenario": "schema_break",
+      "rollout_id": 1,
+      "candidate_model_id": 3,
+      "outcome": "rolled_back",
+      "decision_reason": "error rate 100.0% > 5.0%",
+      "time_to_decision_s": 6.02,
+      "requests_during_rollout": 175,
+      "candidate_answered_200": 0,
+      "client_errors": 23,
+      "requests_affected": 23,
+      "affected_after_decision": 0,
+      "server_served": {
+        "stable": {
+          "requests": 131,
+          "errors": 0
+        },
+        "candidate": {
+          "requests": 22,
+          "errors": 22
+        }
+      },
+      "last_metrics": {
+        "stable_requests": 131,
+        "candidate_requests": 22,
+        "candidate_errors": 22,
+        "candidate_error_rate": 1.0,
+        "stable_error_rate": 0.0,
+        "candidate_p95_ms": null,
+        "stable_p95_ms": 13.5,
+        "prediction_psi": null
+      }
+    },
+    {
+      "scenario": "shuffled_label",
+      "rollout_id": 2,
+      "candidate_model_id": 4,
+      "outcome": "rolled_back",
+      "decision_reason": "prediction PSI 10.414 > 0.25",
+      "time_to_decision_s": 4.37,
+      "requests_during_rollout": 134,
+      "candidate_answered_200": 23,
+      "client_errors": 0,
+      "requests_affected": 23,
+      "affected_after_decision": 1,
+      "server_served": {
+        "stable": {
+          "requests": 83,
+          "errors": 0
+        },
+        "candidate": {
+          "requests": 20,
+          "errors": 0
+        }
+      },
+      "last_metrics": {
+        "stable_requests": 83,
+        "candidate_requests": 20,
+        "candidate_errors": 0,
+        "candidate_error_rate": 0.0,
+        "stable_error_rate": 0.0,
+        "candidate_p95_ms": 10.42,
+        "stable_p95_ms": 11.46,
+        "prediction_psi": 10.413982
+      }
+    },
+    {
+      "scenario": "healthy",
+      "rollout_id": 3,
+      "candidate_model_id": 2,
+      "outcome": "rolled_back",
+      "decision_reason": "prediction PSI 3.728 > 0.25",
+      "time_to_decision_s": 5.88,
+      "requests_during_rollout": 172,
+      "candidate_answered_200": 24,
+      "client_errors": 0,
+      "requests_affected": 24,
+      "affected_after_decision": 1,
+      "server_served": {
+        "stable": {
+          "requests": 131,
+          "errors": 0
+        },
+        "candidate": {
+          "requests": 23,
+          "errors": 0
+        }
+      },
+      "last_metrics": {
+        "stable_requests": 131,
+        "candidate_requests": 23,
+        "candidate_errors": 0,
+        "candidate_error_rate": 0.0,
+        "stable_error_rate": 0.0,
+        "candidate_p95_ms": 9.55,
+        "stable_p95_ms": 9.07,
+        "prediction_psi": 3.728096
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": 1,
+      "deployment_id": 1,
+      "rollout_id": null,
+      "event_type": "deployed",
+      "from_model_id": null,
+      "to_model_id": 1,
+      "reason": "model deployed",
+      "details": null,
+      "created_at": "2026-11-17T08:12:51.383544Z"
+    },
+    {
+      "id": 2,
+      "deployment_id": 1,
+      "rollout_id": 1,
+      "event_type": "canary_started",
+      "from_model_id": 1,
+      "to_model_id": 3,
+      "reason": "planted: schema_break",
+      "details": {
+        "traffic_percent": 20.0,
+        "thresholds": {
+          "max_error_rate": 0.05,
+          "max_p95_latency_ms": 500.0,
+          "max_p95_ratio": 3.0,
+          "max_prediction_psi": 0.25,
+          "min_requests": 20,
+          "auto_promote": false,
+          "promote_after_requests": 300,
+          "canary_percent_after_shadow": 10.0
+        },
+        "actor": "canary_rollback.py"
+      },
+      "created_at": "2026-11-17T08:13:15.671897Z"
+    },
+    {
+      "id": 3,
+      "deployment_id": 1,
+      "rollout_id": 1,
+      "event_type": "rolled_back",
+      "from_model_id": 1,
+      "to_model_id": 3,
+      "reason": "error rate 100.0% > 5.0%",
+      "details": {
+        "metrics": {
+          "stable_requests": 131,
+          "candidate_requests": 22,
+          "candidate_errors": 22,
+          "candidate_error_rate": 1.0,
+          "stable_error_rate": 0.0,
+          "candidate_p95_ms": null,
+          "stable_p95_ms": 13.5,
+          "prediction_psi": null
+        },
+        "reasons": [
+          "error rate 100.0% > 5.0%"
+        ],
+        "actor": "controller",
+        "mode": "canary",
+        "traffic_percent": 20.0,
+        "started_at": "2026-11-17T08:13:15.618812Z"
+      },
+      "created_at": "2026-11-17T08:13:21.724928Z"
+    },
+    {
+      "id": 4,
+      "deployment_id": 1,
+      "rollout_id": 2,
+      "event_type": "canary_started",
+      "from_model_id": 1,
+      "to_model_id": 4,
+      "reason": "planted: shuffled_label",
+      "details": {
+        "traffic_percent": 20.0,
+        "thresholds": {
+          "max_error_rate": 0.05,
+          "max_p95_latency_ms": 500.0,
+          "max_p95_ratio": 3.0,
+          "max_prediction_psi": 0.25,
+          "min_requests": 20,
+          "auto_promote": false,
+          "promote_after_requests": 300,
+          "canary_percent_after_shadow": 10.0
+        },
+        "actor": "canary_rollback.py"
+      },
+      "created_at": "2026-11-17T08:13:42.004474Z"
+    },
+    {
+      "id": 5,
+      "deployment_id": 1,
+      "rollout_id": 2,
+      "event_type": "rolled_back",
+      "from_model_id": 1,
+      "to_model_id": 4,
+      "reason": "prediction PSI 10.414 > 0.25",
+      "details": {
+        "metrics": {
+          "stable_requests": 83,
+          "candidate_requests": 20,
+          "candidate_errors": 0,
+          "candidate_error_rate": 0.0,
+          "stable_error_rate": 0.0,
+          "candidate_p95_ms": 10.42,
+          "stable_p95_ms": 11.46,
+          "prediction_psi": 10.413982
+        },
+        "reasons": [
+          "prediction PSI 10.414 > 0.25"
+        ],
+        "actor": "controller",
+        "mode": "canary",
+        "traffic_percent": 20.0,
+        "started_at": "2026-11-17T08:13:41.985911Z"
+      },
+      "created_at": "2026-11-17T08:13:46.398499Z"
+    },
+    {
+      "id": 6,
+      "deployment_id": 1,
+      "rollout_id": 3,
+      "event_type": "canary_started",
+      "from_model_id": 1,
+      "to_model_id": 2,
+      "reason": "planted: healthy",
+      "details": {
+        "traffic_percent": 20.0,
+        "thresholds": {
+          "max_error_rate": 0.05,
+          "max_p95_latency_ms": 500.0,
+          "max_p95_ratio": 3.0,
+          "max_prediction_psi": 0.25,
+          "min_requests": 20,
+          "auto_promote": false,
+          "promote_after_requests": 300,
+          "canary_percent_after_shadow": 10.0
+        },
+        "actor": "canary_rollback.py"
+      },
+      "created_at": "2026-11-17T08:14:06.038644Z"
+    },
+    {
+      "id": 7,
+      "deployment_id": 1,
+      "rollout_id": 3,
+      "event_type": "rolled_back",
+      "from_model_id": 1,
+      "to_model_id": 2,
+      "reason": "prediction PSI 3.728 > 0.25",
+      "details": {
+        "metrics": {
+          "stable_requests": 131,
+          "candidate_requests": 23,
+          "candidate_errors": 0,
+          "candidate_error_rate": 0.0,
+          "stable_error_rate": 0.0,
+          "candidate_p95_ms": 9.55,
+          "stable_p95_ms": 9.07,
+          "prediction_psi": 3.728096
+        },
+        "reasons": [
+          "prediction PSI 3.728 > 0.25"
+        ],
+        "actor": "controller",
+        "mode": "canary",
+        "traffic_percent": 20.0,
+        "started_at": "2026-11-17T08:14:05.966500Z"
+      },
+      "created_at": "2026-11-17T08:14:11.913213Z"
+    }
+  ]
+}

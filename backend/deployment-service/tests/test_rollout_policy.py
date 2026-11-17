@@ -22,7 +22,7 @@ def arm(n, errors=0, latency=10.0, preds=None):
 
 
 T = RolloutThresholds(max_error_rate=0.05, max_p95_latency_ms=100, max_p95_ratio=3.0,
-                      max_prediction_psi=0.25, min_requests=20)
+                      max_prediction_psi=0.25, min_requests=20, min_psi_samples=30)
 
 
 # ── routing ─────────────────────────────────────────────────────────────────
@@ -137,3 +137,34 @@ def test_prediction_psi_treats_logged_class_strings_as_categories():
 
 def test_prediction_psi_empty():
     assert prediction_psi([], [1]) is None
+
+
+# ── PSI calibration (the false rollback found on Kind) ───────────────────────
+
+def _regression_arm(rng, n, mu=200_000, sd=110_000):
+    preds = [rng.gauss(mu, sd) for _ in range(n)]
+    return ArmStats(requests=n, latencies_ms=[10.0] * n, predictions=preds)
+
+
+def test_healthy_regression_canary_with_23_predictions_is_not_rolled_back():
+    # First Kind run: a healthy candidate was rolled back on 23 predictions with PSI 3.7.
+    rng = random.Random(3)
+    d = evaluate_rollout(_regression_arm(rng, 131), _regression_arm(rng, 23), RolloutThresholds())
+    assert d.action == "continue"
+
+
+def test_psi_rule_false_positive_rate_under_no_drift_is_below_1_percent():
+    rng = random.Random(4)
+    t = RolloutThresholds()
+    trips = sum(
+        evaluate_rollout(_regression_arm(rng, 800), _regression_arm(rng, t.min_psi_samples), t).action == "rollback"
+        for _ in range(300))
+    assert trips <= 3
+
+
+def test_psi_rule_still_catches_a_collapsed_regressor_at_min_psi_samples():
+    rng = random.Random(5)
+    t = RolloutThresholds()
+    collapsed = _regression_arm(rng, t.min_psi_samples, mu=205_000, sd=8_000)  # shuffled-label model
+    d = evaluate_rollout(_regression_arm(rng, 800), collapsed, t)
+    assert d.action == "rollback" and any("prediction PSI" in r for r in d.reasons)

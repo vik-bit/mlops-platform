@@ -52,13 +52,15 @@ def prediction_psi(reference: Sequence[Any], current: Sequence[Any], bins: int =
 
     Categorical (class labels): PSI over class frequencies.
     Numeric (regression outputs): PSI over `bins` quantile buckets of the reference.
-    Returns None when either side is empty. Zero proportions are floored at 1e-6, the same
-    convention as backend/monitoring-service/app/services/drift.py.
+    Returns None when either side is empty.
+
+    Bin counts are Laplace-smoothed (+0.5) rather than floored at 1e-6 as in drift.py: with a
+    small candidate sample many bins are legitimately empty, and a 1e-6 floor adds ~1.15 PSI per
+    empty bin, which rolled back a healthy canary on its first 23 predictions (docs/v2-results).
     """
     if not reference or not current:
         return None
 
-    eps = 1e-6
     numeric = all(_is_number(v) for v in reference) and all(_is_number(v) for v in current)
     # A handful of distinct integer values (class ids) is still a categorical output.
     if numeric and len(set(map(float, reference))) <= 20:
@@ -71,17 +73,17 @@ def prediction_psi(reference: Sequence[Any], current: Sequence[Any], bins: int =
         if len(edges) < 2:
             edges = np.array([ref.min() - 0.5, ref.min() + 0.5])
         edges[0], edges[-1] = -np.inf, np.inf
-        ref_pct = np.histogram(ref, bins=edges)[0] / len(ref)
-        cur_pct = np.histogram(cur, bins=edges)[0] / len(cur)
+        ref_n = np.histogram(ref, bins=edges)[0].astype(float)
+        cur_n = np.histogram(cur, bins=edges)[0].astype(float)
     else:
         ref_s = [str(v) for v in reference]
         cur_s = [str(v) for v in current]
         cats = sorted(set(ref_s) | set(cur_s))
-        ref_pct = np.array([ref_s.count(c) for c in cats], dtype=float) / len(ref_s)
-        cur_pct = np.array([cur_s.count(c) for c in cats], dtype=float) / len(cur_s)
+        ref_n = np.array([ref_s.count(c) for c in cats], dtype=float)
+        cur_n = np.array([cur_s.count(c) for c in cats], dtype=float)
 
-    ref_pct = np.where(ref_pct == 0, eps, ref_pct)
-    cur_pct = np.where(cur_pct == 0, eps, cur_pct)
+    ref_pct = (ref_n + 0.5) / (ref_n.sum() + 0.5 * len(ref_n))
+    cur_pct = (cur_n + 0.5) / (cur_n.sum() + 0.5 * len(cur_n))
     return round(float(np.sum((cur_pct - ref_pct) * np.log(cur_pct / ref_pct))), 6)
 
 
@@ -113,6 +115,8 @@ class RolloutThresholds:
     max_p95_ratio           candidate p95 / stable p95 (ignored until the stable arm has data)
     max_prediction_psi      PSI of candidate predictions vs stable predictions on the same window
     min_requests            candidate requests needed before any rule may fire
+    min_psi_samples         candidate predictions needed before the prediction-PSI rule may fire
+                            (PSI is noisy on small samples; see prediction_psi)
     auto_promote            promote once `promote_after_requests` healthy candidate requests are seen
     promote_after_requests  (shadow promotes to canary at `canary_percent_after_shadow`)
     """
@@ -122,6 +126,7 @@ class RolloutThresholds:
     max_p95_ratio: float = 3.0
     max_prediction_psi: float = 0.25
     min_requests: int = 20
+    min_psi_samples: int = 200
     auto_promote: bool = False
     promote_after_requests: int = 300
     canary_percent_after_shadow: float = 10.0
@@ -188,7 +193,8 @@ def evaluate_rollout(stable: ArmStats, candidate: ArmStats, t: RolloutThresholds
     if p95_c is not None and p95_s and len(stable.latencies_ms) >= t.min_requests:
         if p95_c > t.max_p95_ratio * p95_s:
             reasons.append(f"p95 latency {p95_c:.0f} ms > {t.max_p95_ratio:g}x stable ({p95_s:.0f} ms)")
-    if psi is not None and len(stable.predictions) >= t.min_requests and psi > t.max_prediction_psi:
+    if (psi is not None and len(candidate.predictions) >= t.min_psi_samples
+            and len(stable.predictions) >= t.min_psi_samples and psi > t.max_prediction_psi):
         reasons.append(f"prediction PSI {psi:.3f} > {t.max_prediction_psi}")
 
     if reasons:
