@@ -201,6 +201,8 @@ def finish_rollout(db, rollout: Rollout, outcome: str, reason: str, details: Opt
         _set_stage(db, rollout.stable_model_id, "archived")
     elif outcome == "rolled_back":
         _set_stage(db, rollout.candidate_model_id, "rejected")
+    else:
+        _set_stage(db, rollout.candidate_model_id, "staging")
 
     record_event(db, event_type, deployment_id=rollout.deployment_id, rollout_id=rollout.id,
                  from_model_id=rollout.stable_model_id, to_model_id=rollout.candidate_model_id,

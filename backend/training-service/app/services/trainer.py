@@ -117,6 +117,8 @@ def extract_feature_importance(pipeline: Pipeline, feature_names: list) -> Optio
     """
     try:
         model = pipeline.named_steps["model"]
+        # Regression wraps the estimator in TransformedTargetRegressor; importances live on the inner one.
+        model = getattr(model, "regressor_", model)
         preprocessor = pipeline.named_steps["preprocessor"]
 
         # Get transformed feature names

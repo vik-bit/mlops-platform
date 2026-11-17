@@ -90,20 +90,19 @@ def background_training(
         model_bytes = save_model(result.pipeline, job_id)
 
         # Build metadata dict — stored as JSON string in Postgres, not a file
-        metadata_dict = None
-        if result.feature_importance:
-            X = df.drop(columns=[target_column, "id"], errors="ignore")
-            training_distribution = build_training_distribution(X)
-
-            metadata_dict = {
-                "feature_importance":    result.feature_importance,
-                "model_type":            model_type,
-                "task_type":             task_type,
-                "hyperparameters":       hyperparameters,
-                "feature_transforms":    result.feature_transforms,
-                "training_distribution": training_distribution,
-                "training_rows":         len(df),
-            }
+        # Always store metadata: drift detection needs training_distribution even when the model
+        # has no feature importances (svm, knn, ...).
+        X = df.drop(columns=[target_column, "id"], errors="ignore")
+        metadata_dict = {
+            "feature_importance":    result.feature_importance,
+            "model_type":            model_type,
+            "task_type":             task_type,
+            "target_column":         target_column,
+            "hyperparameters":       hyperparameters,
+            "feature_transforms":    result.feature_transforms,
+            "training_distribution": build_training_distribution(X),
+            "training_rows":         len(df),
+        }
 
         # Register model — bytes and metadata go into Postgres columns, not files
         registry_entry = ModelRegistry(
