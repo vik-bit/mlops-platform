@@ -9,3 +9,4 @@ numpy
 joblib
 lightgbm>=4.3.0
 xgboost>=2.1.4
+requests

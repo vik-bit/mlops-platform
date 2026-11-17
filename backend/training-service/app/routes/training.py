@@ -17,7 +17,11 @@ from app.services.data_loader import load_dataset
 from app.services.trainer import train_model
 from app.services.model_saver import save_model
 from app.services.predictor import predict
+from app.services.baseline import training_distribution as build_training_distribution
 from app.utils.mlflow_logger import log_training
+from app.services.retrain import run_retrain
+from pydantic import BaseModel
+from typing import Any, Dict, Optional
 
 
 router = APIRouter()
@@ -86,44 +90,19 @@ def background_training(
         model_bytes = save_model(result.pipeline, job_id)
 
         # Build metadata dict — stored as JSON string in Postgres, not a file
-        metadata_dict = None
-        if result.feature_importance:
-            training_distribution = {}
-            X = df.drop(columns=[target_column, "id"], errors="ignore")
-            for col in X.columns:
-                series = X[col].dropna()
-                if pd.api.types.is_numeric_dtype(series):
-                    training_distribution[col] = {
-                        "type":   "numeric",
-                        "mean":   round(float(series.mean()), 6),
-                        "std":    round(float(series.std()), 6),
-                        "min":    round(float(series.min()), 6),
-                        "max":    round(float(series.max()), 6),
-                        "p25":    round(float(series.quantile(0.25)), 6),
-                        "p50":    round(float(series.quantile(0.50)), 6),
-                        "p75":    round(float(series.quantile(0.75)), 6),
-                        "p95":    round(float(series.quantile(0.95)), 6),
-                        "hist_counts": [int(v) for v in
-                                        pd.cut(series, bins=10).value_counts(sort=False).values],
-                        "hist_edges":  [round(float(v), 6) for v in
-                                        pd.cut(series, bins=10, retbins=True)[1]],
-                    }
-                else:
-                    vc = series.value_counts(normalize=True)
-                    training_distribution[col] = {
-                        "type":        "categorical",
-                        "frequencies": {str(k): round(float(v), 6) for k, v in vc.items()},
-                    }
-
-            metadata_dict = {
-                "feature_importance":    result.feature_importance,
-                "model_type":            model_type,
-                "task_type":             task_type,
-                "hyperparameters":       hyperparameters,
-                "feature_transforms":    result.feature_transforms,
-                "training_distribution": training_distribution,
-                "training_rows":         len(df),
-            }
+        # Always store metadata: drift detection needs training_distribution even when the model
+        # has no feature importances (svm, knn, ...).
+        X = df.drop(columns=[target_column, "id"], errors="ignore")
+        metadata_dict = {
+            "feature_importance":    result.feature_importance,
+            "model_type":            model_type,
+            "task_type":             task_type,
+            "target_column":         target_column,
+            "hyperparameters":       hyperparameters,
+            "feature_transforms":    result.feature_transforms,
+            "training_distribution": build_training_distribution(X),
+            "training_rows":         len(df),
+        }
 
         # Register model — bytes and metadata go into Postgres columns, not files
         registry_entry = ModelRegistry(
@@ -212,6 +191,37 @@ def start_training(request: TrainingRequest, db: Session = Depends(get_db)):
     ).start()
 
     return _job_to_dict(job)
+
+
+class RetrainRequest(BaseModel):
+    deployment_id: int
+    live_model_id: int
+    trigger: Optional[Dict[str, Any]] = None   # e.g. the drift breaches that caused it
+    retrain: Optional[Dict[str, Any]] = None   # per-call RetrainPolicy overrides
+    gate: Optional[Dict[str, Any]] = None      # per-call GatePolicy overrides
+
+
+@router.post("/retrain")
+def start_retrain(request: RetrainRequest, db: Session = Depends(get_db)):
+    """Queue a retrain of a deployment's live model on its recent labelled data, behind the promotion gate."""
+    live = db.query(ModelRegistry).filter(ModelRegistry.id == request.live_model_id).first()
+    if not live:
+        raise HTTPException(status_code=404, detail="Live model not found")
+    live_job = db.query(TrainingJob).filter(TrainingJob.id == live.training_job_id).first()
+    job = TrainingJob(
+        dataset_id=None,
+        model_type=live_job.model_type if live_job else "unknown",
+        task_type=live_job.task_type if live_job else "classification",
+        target_column=live_job.target_column if live_job else "unknown",
+        status="queued",
+        hyperparameters=live_job.hyperparameters if live_job else "{}",
+    )
+    db.add(job)
+    db.commit()
+    Thread(target=run_retrain, daemon=True,
+           args=(job.id, request.deployment_id, request.live_model_id,
+                 {"trigger": request.trigger, "retrain": request.retrain, "gate": request.gate})).start()
+    return {"job_id": job.id, "status": "queued"}
 
 
 @router.get("/models")

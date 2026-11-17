@@ -1,0 +1,217 @@
+# Stateful dependencies: Postgres, Redis, MLflow, Prometheus.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector: {app: postgres}
+  ports: [{port: 5432, targetPort: 5432}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels: {app: postgres}
+  template:
+    metadata:
+      labels: {app: postgres}
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          env:
+            - {name: POSTGRES_DB, value: mlops_platform}
+            - name: POSTGRES_USER
+              valueFrom: {secretKeyRef: {name: mlops-secrets, key: POSTGRES_USER}}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: mlops-secrets, key: POSTGRES_PASSWORD}}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          args: ["-c", "max_connections=300"]
+          ports: [{containerPort: 5432}]
+          readinessProbe:
+            exec: {command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d mlops_platform"]}
+            periodSeconds: 5
+          livenessProbe:
+            exec: {command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d mlops_platform"]}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 768Mi}
+          volumeMounts: [{name: data, mountPath: /var/lib/postgresql/data}]
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: {requests: {storage: 2Gi}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  selector: {app: redis}
+  ports: [{port: 6379, targetPort: 6379}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: redis}
+  template:
+    metadata:
+      labels: {app: redis}
+    spec:
+      containers:
+        - name: redis
+          image: redis:7
+          ports: [{containerPort: 6379}]
+          readinessProbe:
+            exec: {command: ["redis-cli", "ping"]}
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: 6379}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow
+spec:
+  selector: {app: mlflow}
+  ports: [{port: 5000, targetPort: 5000}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: mlflow}
+  template:
+    metadata:
+      labels: {app: mlflow}
+    spec:
+      containers:
+        - name: mlflow
+          image: ghcr.io/mlflow/mlflow:v2.12.1
+          command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000",
+                    "--backend-store-uri", "sqlite:////mlflow/mlflow.db",
+                    "--default-artifact-root", "/mlflow/artifacts"]
+          ports: [{containerPort: 5000}]
+          readinessProbe:
+            httpGet: {path: /health, port: 5000}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: 5000}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 768Mi}
+          volumeMounts: [{name: data, mountPath: /mlflow}]
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+# Prometheus discovers every pod annotated prometheus.io/scrape=true (so each
+# deployment-service replica is scraped separately as the HPA adds pods).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: prometheus-pod-reader
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, endpoints]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: prometheus-pod-reader
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: prometheus-pod-reader}
+subjects: [{kind: ServiceAccount, name: prometheus}]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+    scrape_configs:
+      - job_name: pods
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces: {own_namespace: true}
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: app
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+spec:
+  selector: {app: prometheus}
+  ports: [{port: 9090, targetPort: 9090}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: prometheus}
+  template:
+    metadata:
+      labels: {app: prometheus}
+    spec:
+      serviceAccountName: prometheus
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.53.0
+          args: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=2d"]
+          ports: [{containerPort: 9090}]
+          readinessProbe:
+            httpGet: {path: /-/ready, port: 9090}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /-/healthy, port: 9090}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts: [{name: config, mountPath: /etc/prometheus}]
+      volumes:
+        - name: config
+          configMap: {name: prometheus-config}

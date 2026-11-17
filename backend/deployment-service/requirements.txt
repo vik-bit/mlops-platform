@@ -9,6 +9,8 @@ redis
 mlflow
 scikit-learn>=1.9  # TargetEncoder(cv=...); training and deployment must match to unpickle models
 joblib
+prometheus_client
+requests
 python-multipart
 xgboost==2.1.4
 lightgbm>=4.3.0
