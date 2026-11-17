@@ -38,10 +38,24 @@ if [ -z "${SKIP_BUILD:-}" ]; then
   done
   "$DOCKER" build -q -t mlops/frontend:dev \
     --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:18000 frontend/vertex-ai-frontend
-  for img in "${SERVICES[@]}" frontend; do
-    "$KIND" load docker-image "mlops/$img:dev" --name "$CLUSTER"
-  done
 fi
+
+# Load images through an archive: `kind load docker-image` fails with "content digest ... not
+# found" when Docker Desktop uses the containerd image store (multi-platform images), and pulling
+# from inside the Kind node depends on its DNS. Loading from the host avoids both.
+load() {
+  "$DOCKER" image inspect "$1" >/dev/null 2>&1 || "$DOCKER" pull -q "$1"
+  local tar; tar=$(mktemp -u).tar
+  "$DOCKER" save --platform linux/amd64 -o "$tar" "$1"
+  "$KIND" load image-archive "$tar" --name "$CLUSTER"
+  rm -f "$tar"
+}
+for img in postgres:16 redis:7 prom/prometheus:v2.53.0 ghcr.io/mlflow/mlflow:v2.12.1 registry.k8s.io/metrics-server/metrics-server:v0.7.2; do
+  load "$img"
+done
+for img in "${SERVICES[@]}" frontend; do
+  load "mlops/$img:dev"
+done
 
 kubectl apply -f k8s/kind/metrics-server.yaml
 kubectl apply -k k8s/kind
