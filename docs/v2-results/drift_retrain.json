@@ -1,0 +1,649 @@
+{
+  "rps": 25.0,
+  "policy": {
+    "retrain": {
+      "enabled": true,
+      "window": 500,
+      "min_samples": 100,
+      "psi_threshold": 0.2,
+      "feature_psi_threshold": 0.25,
+      "ks_threshold": 0.3,
+      "min_labelled": 2500,
+      "labelled_window": 3000,
+      "holdout_fraction": 0.3,
+      "cooldown_s": 3600,
+      "promote_mode": "direct"
+    },
+    "gate": {
+      "metric": "rmse",
+      "margin": 0.0,
+      "min_holdout": 200
+    }
+  },
+  "results": [
+    {
+      "scenario": "north",
+      "deployment_id": 4,
+      "live_model_id": 10,
+      "in_distribution_check": {
+        "retrain": false,
+        "breaches": [],
+        "drift": {
+          "overall_psi": 0.017144,
+          "overall_drift": "none",
+          "drifted_features": [],
+          "logs_analysed": 500,
+          "per_feature": {
+            "longitude": {
+              "psi": 0.023339,
+              "ks": 0.134098
+            },
+            "latitude": {
+              "psi": 0.019634,
+              "ks": 0.186542
+            },
+            "housing_median_age": {
+              "psi": 0.011076,
+              "ks": 0.066086
+            },
+            "total_rooms": {
+              "psi": 0.011129,
+              "ks": 0.187033
+            },
+            "total_bedrooms": {
+              "psi": 0.018017,
+              "ks": 0.173815
+            },
+            "population": {
+              "psi": 0.013611,
+              "ks": 0.145317
+            },
+            "households": {
+              "psi": 0.021954,
+              "ks": 0.162716
+            },
+            "median_income": {
+              "psi": 0.032089,
+              "ks": 0.132992
+            },
+            "ocean_proximity": {
+              "psi": 0.003446,
+              "ks": null
+            }
+          }
+        }
+      },
+      "shifted_requests_sent": 1800,
+      "seconds_after_shift": {
+        "drift_detected": 86.9,
+        "retrain_queued": 86.9,
+        "gate_decided": 88.4,
+        "promoted": 88.5
+      },
+      "drift_event": {
+        "id": 18,
+        "deployment_id": 4,
+        "rollout_id": null,
+        "event_type": "drift_detected",
+        "from_model_id": 10,
+        "to_model_id": null,
+        "reason": "overall PSI 3.337 > 0.2; latitude: PSI 16.369 > 0.25; latitude: KS 0.995 > 0.3; longitude: PSI 9.465 > 0.25; longitude: KS 0.912 > 0.3",
+        "details": {
+          "overall_psi": 3.336829,
+          "overall_drift": "high",
+          "drifted_features": [
+            "longitude",
+            "latitude",
+            "housing_median_age",
+            "ocean_proximity"
+          ],
+          "logs_analysed": 500,
+          "per_feature": {
+            "longitude": {
+              "psi": 9.464731,
+              "ks": 0.911815
+            },
+            "latitude": {
+              "psi": 16.368591,
+              "ks": 0.994759
+            },
+            "housing_median_age": {
+              "psi": 0.12794,
+              "ks": 0.107972
+            },
+            "total_rooms": {
+              "psi": 0.062372,
+              "ks": 0.209965
+            },
+            "total_bedrooms": {
+              "psi": 0.027447,
+              "ks": 0.212404
+            },
+            "population": {
+              "psi": 0.018526,
+              "ks": 0.250749
+            },
+            "households": {
+              "psi": 0.03537,
+              "ks": 0.220523
+            },
+            "median_income": {
+              "psi": 0.093062,
+              "ks": 0.169245
+            },
+            "ocean_proximity": {
+              "psi": 3.833421,
+              "ks": null
+            }
+          }
+        },
+        "created_at": "2026-11-17T08:51:58.323970Z"
+      },
+      "gate": {
+        "job_id": 11,
+        "train_rows": 1750,
+        "holdout_rows": 750,
+        "gate": {
+          "passed": true,
+          "reason": "candidate rmse 54110.5178 vs live 103856.5645: not worse than live beyond margin 0",
+          "metric": "rmse",
+          "live_score": 103856.56452933449,
+          "candidate_score": 54110.51784885327,
+          "delta": 49746.04668
+        },
+        "seconds": 1.48
+      },
+      "gate_reason": "candidate rmse 54110.5178 vs live 103856.5645: not worse than live beyond margin 0",
+      "online_rmse": {
+        "in_distribution": 53509.1,
+        "shifted_live_model": 106462.2,
+        "shifted_after_promotion": 52419.3
+      },
+      "post_check": {
+        "model_id": 11,
+        "retrain": false,
+        "drift": {
+          "overall_psi": 0.966648,
+          "overall_drift": "high",
+          "drifted_features": [
+            "longitude",
+            "latitude",
+            "housing_median_age",
+            "ocean_proximity"
+          ],
+          "logs_analysed": 500,
+          "per_feature": {
+            "longitude": {
+              "psi": 2.440635,
+              "ks": 0.481268
+            },
+            "latitude": {
+              "psi": 5.741413,
+              "ks": 0.50669
+            },
+            "housing_median_age": {
+              "psi": 0.104711,
+              "ks": 0.141737
+            },
+            "total_rooms": {
+              "psi": 0.043094,
+              "ks": 0.178474
+            },
+            "total_bedrooms": {
+              "psi": 0.035742,
+              "ks": 0.188093
+            },
+            "population": {
+              "psi": 0.027189,
+              "ks": 0.192423
+            },
+            "households": {
+              "psi": 0.019515,
+              "ks": 0.185045
+            },
+            "median_income": {
+              "psi": 0.049659,
+              "ks": 0.116676
+            },
+            "ocean_proximity": {
+              "psi": 0.237877,
+              "ks": null
+            }
+          }
+        }
+      },
+      "promoted_after_s": 88.5,
+      "events": [
+        {
+          "id": 17,
+          "deployment_id": 4,
+          "rollout_id": null,
+          "event_type": "deployed",
+          "from_model_id": null,
+          "to_model_id": 10,
+          "reason": "model deployed",
+          "details": null,
+          "created_at": "2026-11-17T08:49:48.970860Z"
+        },
+        {
+          "id": 18,
+          "deployment_id": 4,
+          "rollout_id": null,
+          "event_type": "drift_detected",
+          "from_model_id": 10,
+          "to_model_id": null,
+          "reason": "overall PSI 3.337 > 0.2; latitude: PSI 16.369 > 0.25; latitude: KS 0.995 > 0.3; longitude: PSI 9.465 > 0.25; longitude: KS 0.912 > 0.3",
+          "details": {
+            "overall_psi": 3.336829,
+            "overall_drift": "high",
+            "drifted_features": [
+              "longitude",
+              "latitude",
+              "housing_median_age",
+              "ocean_proximity"
+            ],
+            "logs_analysed": 500,
+            "per_feature": {
+              "longitude": {
+                "psi": 9.464731,
+                "ks": 0.911815
+              },
+              "latitude": {
+                "psi": 16.368591,
+                "ks": 0.994759
+              },
+              "housing_median_age": {
+                "psi": 0.12794,
+                "ks": 0.107972
+              },
+              "total_rooms": {
+                "psi": 0.062372,
+                "ks": 0.209965
+              },
+              "total_bedrooms": {
+                "psi": 0.027447,
+                "ks": 0.212404
+              },
+              "population": {
+                "psi": 0.018526,
+                "ks": 0.250749
+              },
+              "households": {
+                "psi": 0.03537,
+                "ks": 0.220523
+              },
+              "median_income": {
+                "psi": 0.093062,
+                "ks": 0.169245
+              },
+              "ocean_proximity": {
+                "psi": 3.833421,
+                "ks": null
+              }
+            }
+          },
+          "created_at": "2026-11-17T08:51:58.323970Z"
+        },
+        {
+          "id": 19,
+          "deployment_id": 4,
+          "rollout_id": null,
+          "event_type": "retrain_queued",
+          "from_model_id": 10,
+          "to_model_id": null,
+          "reason": "retrain job 11 on 2500 labelled samples",
+          "details": {
+            "job_id": 11,
+            "labelled": 2500
+          },
+          "created_at": "2026-11-17T08:51:58.374109Z"
+        },
+        {
+          "id": 20,
+          "deployment_id": 4,
+          "rollout_id": null,
+          "event_type": "gate_passed",
+          "from_model_id": 10,
+          "to_model_id": 11,
+          "reason": "candidate rmse 54110.5178 vs live 103856.5645: not worse than live beyond margin 0",
+          "details": {
+            "job_id": 11,
+            "train_rows": 1750,
+            "holdout_rows": 750,
+            "gate": {
+              "passed": true,
+              "reason": "candidate rmse 54110.5178 vs live 103856.5645: not worse than live beyond margin 0",
+              "metric": "rmse",
+              "live_score": 103856.56452933449,
+              "candidate_score": 54110.51784885327,
+              "delta": 49746.04668
+            },
+            "seconds": 1.48
+          },
+          "created_at": "2026-11-17T08:51:59.854147Z"
+        },
+        {
+          "id": 21,
+          "deployment_id": 4,
+          "rollout_id": null,
+          "event_type": "promoted",
+          "from_model_id": 10,
+          "to_model_id": 11,
+          "reason": "gate passed: candidate rmse 54110.5178 vs live 103856.5645: not worse than live beyond margin 0",
+          "details": {
+            "job_id": 11,
+            "train_rows": 1750,
+            "holdout_rows": 750,
+            "gate": {
+              "passed": true,
+              "reason": "candidate rmse 54110.5178 vs live 103856.5645: not worse than live beyond margin 0",
+              "metric": "rmse",
+              "live_score": 103856.56452933449,
+              "candidate_score": 54110.51784885327,
+              "delta": 49746.04668
+            },
+            "seconds": 1.48,
+            "actor": "retrain-gate",
+            "mode": "direct"
+          },
+          "created_at": "2026-11-17T08:51:59.962733Z"
+        }
+      ]
+    },
+    {
+      "scenario": "high_income",
+      "deployment_id": 5,
+      "live_model_id": 12,
+      "in_distribution_check": {
+        "retrain": false,
+        "breaches": [],
+        "drift": {
+          "overall_psi": 0.025481,
+          "overall_drift": "none",
+          "drifted_features": [],
+          "logs_analysed": 500,
+          "per_feature": {
+            "longitude": {
+              "psi": 0.018004,
+              "ks": 0.14329
+            },
+            "latitude": {
+              "psi": 0.019482,
+              "ks": 0.166758
+            },
+            "housing_median_age": {
+              "psi": 0.029747,
+              "ks": 0.073195
+            },
+            "total_rooms": {
+              "psi": 0.019738,
+              "ks": 0.187438
+            },
+            "total_bedrooms": {
+              "psi": 0.046285,
+              "ks": 0.173286
+            },
+            "population": {
+              "psi": 0.020393,
+              "ks": 0.168741
+            },
+            "households": {
+              "psi": 0.039141,
+              "ks": 0.1633
+            },
+            "median_income": {
+              "psi": 0.032665,
+              "ks": 0.105714
+            },
+            "ocean_proximity": {
+              "psi": 0.003873,
+              "ks": null
+            }
+          }
+        }
+      },
+      "shifted_requests_sent": 1900,
+      "seconds_after_shift": {
+        "drift_detected": 113.9,
+        "retrain_queued": 113.9,
+        "gate_decided": 115.6,
+        "promoted": null
+      },
+      "drift_event": {
+        "id": 23,
+        "deployment_id": 5,
+        "rollout_id": null,
+        "event_type": "drift_detected",
+        "from_model_id": 12,
+        "to_model_id": null,
+        "reason": "overall PSI 0.709 > 0.2; median_income: PSI 5.982 > 0.25; median_income: KS 0.433 > 0.3",
+        "details": {
+          "overall_psi": 0.708727,
+          "overall_drift": "high",
+          "drifted_features": [
+            "median_income"
+          ],
+          "logs_analysed": 500,
+          "per_feature": {
+            "longitude": {
+              "psi": 0.098166,
+              "ks": 0.1354
+            },
+            "latitude": {
+              "psi": 0.08078,
+              "ks": 0.173397
+            },
+            "housing_median_age": {
+              "psi": 0.081407,
+              "ks": 0.134254
+            },
+            "total_rooms": {
+              "psi": 0.046297,
+              "ks": 0.183299
+            },
+            "total_bedrooms": {
+              "psi": 0.030013,
+              "ks": 0.193038
+            },
+            "population": {
+              "psi": 0.01304,
+              "ks": 0.164385
+            },
+            "households": {
+              "psi": 0.027794,
+              "ks": 0.174577
+            },
+            "median_income": {
+              "psi": 5.982147,
+              "ks": 0.432727
+            },
+            "ocean_proximity": {
+              "psi": 0.018897,
+              "ks": null
+            }
+          }
+        },
+        "created_at": "2026-11-17T08:55:44.602857Z"
+      },
+      "gate": {
+        "job_id": 13,
+        "train_rows": 1820,
+        "holdout_rows": 780,
+        "gate": {
+          "passed": false,
+          "reason": "candidate rmse 60252.5742 vs live 58096.5073: worse than live beyond margin 0",
+          "metric": "rmse",
+          "live_score": 58096.507348224266,
+          "candidate_score": 60252.57420150064,
+          "delta": -2156.066853
+        },
+        "seconds": 1.62
+      },
+      "gate_reason": "candidate rmse 60252.5742 vs live 58096.5073: worse than live beyond margin 0",
+      "online_rmse": {
+        "in_distribution": 53490.7,
+        "shifted_live_model": 58464.2,
+        "shifted_after_promotion": null
+      },
+      "post_check": {
+        "model_id": 12,
+        "retrain": false,
+        "drift": {
+          "overall_psi": 0.705665,
+          "overall_drift": "high",
+          "drifted_features": [
+            "longitude",
+            "median_income"
+          ],
+          "logs_analysed": 500,
+          "per_feature": {
+            "longitude": {
+              "psi": 0.10224,
+              "ks": 0.1414
+            },
+            "latitude": {
+              "psi": 0.067726,
+              "ks": 0.181397
+            },
+            "housing_median_age": {
+              "psi": 0.065653,
+              "ks": 0.116254
+            },
+            "total_rooms": {
+              "psi": 0.042324,
+              "ks": 0.188611
+            },
+            "total_bedrooms": {
+              "psi": 0.033513,
+              "ks": 0.197264
+            },
+            "population": {
+              "psi": 0.016657,
+              "ks": 0.168332
+            },
+            "households": {
+              "psi": 0.02737,
+              "ks": 0.18396
+            },
+            "median_income": {
+              "psi": 5.966697,
+              "ks": 0.432931
+            },
+            "ocean_proximity": {
+              "psi": 0.028801,
+              "ks": null
+            }
+          }
+        }
+      },
+      "promoted_after_s": null,
+      "events": [
+        {
+          "id": 22,
+          "deployment_id": 5,
+          "rollout_id": null,
+          "event_type": "deployed",
+          "from_model_id": null,
+          "to_model_id": 12,
+          "reason": "model deployed",
+          "details": null,
+          "created_at": "2026-11-17T08:53:08.265328Z"
+        },
+        {
+          "id": 23,
+          "deployment_id": 5,
+          "rollout_id": null,
+          "event_type": "drift_detected",
+          "from_model_id": 12,
+          "to_model_id": null,
+          "reason": "overall PSI 0.709 > 0.2; median_income: PSI 5.982 > 0.25; median_income: KS 0.433 > 0.3",
+          "details": {
+            "overall_psi": 0.708727,
+            "overall_drift": "high",
+            "drifted_features": [
+              "median_income"
+            ],
+            "logs_analysed": 500,
+            "per_feature": {
+              "longitude": {
+                "psi": 0.098166,
+                "ks": 0.1354
+              },
+              "latitude": {
+                "psi": 0.08078,
+                "ks": 0.173397
+              },
+              "housing_median_age": {
+                "psi": 0.081407,
+                "ks": 0.134254
+              },
+              "total_rooms": {
+                "psi": 0.046297,
+                "ks": 0.183299
+              },
+              "total_bedrooms": {
+                "psi": 0.030013,
+                "ks": 0.193038
+              },
+              "population": {
+                "psi": 0.01304,
+                "ks": 0.164385
+              },
+              "households": {
+                "psi": 0.027794,
+                "ks": 0.174577
+              },
+              "median_income": {
+                "psi": 5.982147,
+                "ks": 0.432727
+              },
+              "ocean_proximity": {
+                "psi": 0.018897,
+                "ks": null
+              }
+            }
+          },
+          "created_at": "2026-11-17T08:55:44.602857Z"
+        },
+        {
+          "id": 24,
+          "deployment_id": 5,
+          "rollout_id": null,
+          "event_type": "retrain_queued",
+          "from_model_id": 12,
+          "to_model_id": null,
+          "reason": "retrain job 13 on 2600 labelled samples",
+          "details": {
+            "job_id": 13,
+            "labelled": 2600
+          },
+          "created_at": "2026-11-17T08:55:44.636336Z"
+        },
+        {
+          "id": 25,
+          "deployment_id": 5,
+          "rollout_id": null,
+          "event_type": "gate_failed",
+          "from_model_id": 12,
+          "to_model_id": 13,
+          "reason": "candidate rmse 60252.5742 vs live 58096.5073: worse than live beyond margin 0",
+          "details": {
+            "job_id": 13,
+            "train_rows": 1820,
+            "holdout_rows": 780,
+            "gate": {
+              "passed": false,
+              "reason": "candidate rmse 60252.5742 vs live 58096.5073: worse than live beyond margin 0",
+              "metric": "rmse",
+              "live_score": 58096.507348224266,
+              "candidate_score": 60252.57420150064,
+              "delta": -2156.066853
+            },
+            "seconds": 1.62
+          },
+          "created_at": "2026-11-17T08:55:46.258109Z"
+        }
+      ]
+    }
+  ]
+}
